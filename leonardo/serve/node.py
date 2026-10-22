@@ -12,7 +12,8 @@ def engine_command(cfg, rank, master, master_port, api_port):
     p = profile_check(cfg['profile'])
     parallel = p['parallelism']
     command = ['vllm', 'serve', cfg['model_path'], '--served-model-name', p['served_model'],
-               '--tensor-parallel-size', str(parallel['tensor']), '--pipeline-parallel-size', str(parallel['pipeline'])]
+               '--tensor-parallel-size', str(parallel['tensor']), '--pipeline-parallel-size', str(parallel['pipeline']),
+               '--data-parallel-size', str(parallel['data'])]
     if p['resources']['nodes'] > 1:
         command += ['--nnodes', str(p['resources']['nodes']), '--node-rank', str(rank),
                     '--master-addr', master, '--master-port', str(master_port)]

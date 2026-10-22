@@ -1,22 +1,23 @@
 {
   "schema_version": 1,
-  "id": "deepseek41-16gpu",
-  "model_id": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
-  "revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
-  "checkpoint": "deepseek41",
+  "id": "deepseek41derisk",
+  "model_id": "Blackfrost-AI/DeepSeek-V4.1-Flash-1017-DERISKED-FP8",
+  "revision": "4bb7df57c6bf26caf40e8da905e4062aed088ea6",
+  "checkpoint": "deepseek41derisk",
   "expected_shards": 48,
   "runtime": "vllm-backport-sm80-0.13.1-ppkv1",
-  "served_model": "deepseek-v4.1-flash-1017-16gpu-leonardo",
+  "served_model": "deepseek-v4.1-flash-1017-derisk-leonardo",
   "resources": {
     "nodes": 4,
-    "gpus_per_node": 4,
-    "cpus_per_task": 32,
-    "memory": "480GB",
+    "gpus_per_node": 1,
+    "cpus_per_task": 8,
+    "memory": "120GB",
     "time": "02:00:00"
   },
   "parallelism": {
-    "tensor": 8,
-    "pipeline": 2
+    "tensor": 4,
+    "pipeline": 1,
+    "data": 1
   },
   "engine_args": [
     "--enable-expert-parallel",
@@ -29,18 +30,18 @@
     "--max-model-len",
     "2048",
     "--max-num-seqs",
-    "8",
+    "2",
     "--max-num-batched-tokens",
     "2048",
     "--enforce-eager",
     "--disable-custom-all-reduce",
     "--language-model-only",
     "--engram-config",
-    "{\"cpu_offload\":false}",
+    "{\"cpu_offload\":true}",
     "--kv-cache-dtype",
     "fp8_ds_mla",
     "--safetensors-load-strategy",
-    "prefetch",
+    "lazy",
     "--tokenizer-mode",
     "deepseek_v41",
     "--reasoning-parser",
@@ -53,14 +54,17 @@
     "OMP_NUM_THREADS": "1",
     "VLLM_ENGINE_READY_TIMEOUT_S": "3000"
   },
-  "hooks": [],
+  "hooks": [
+    "nccl_ep",
+    "warm_engram"
+  ],
   "client": {
-    "local_port": 18086,
+    "local_port": 18084,
     "timeout_seconds": 300,
     "chat_template_kwargs": {
       "thinking": false
     }
   },
   "startup_timeout_seconds": 4800,
-  "validation": "Engine settings passed seven English startup checks and 14 finite load bursts (422/422 requests) in job 61481897 on 20 October 2026 with the earlier launcher. This separately named profile and runtime installation have not been GPU-rerun through the unified CLI/router. See docs/deepseek16.md and validation/runs/2026-10-20-deepseek41-16gpu."
+  "validation": "Common launcher validated on Leonardo with one operator account, job 61300901: seven English API checks plus two SSH client suites. Other accounts and sustained application load remain unvalidated. This snapshot changes only shared port allocation; the port correction was GPU-validated with Qwen in job 61389137. No GLM/DeepSeek GPU rerun is claimed."
 }

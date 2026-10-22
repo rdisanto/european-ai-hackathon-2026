@@ -24,7 +24,7 @@
     "--gpu-memory-utilization",
     "0.90",
     "--max-model-len",
-    "8192",
+    "40960",
     "--max-num-seqs",
     "16",
     "--reasoning-parser",

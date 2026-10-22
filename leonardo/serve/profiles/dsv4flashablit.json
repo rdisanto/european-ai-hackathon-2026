@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "id": "dsv4flashablit",
+  "model_id": "apetersson/DeepSeek-V4-Flash-0731-Abliterated-FP8",
+  "revision": "7d02640c72a2c8127f116d3d1933ddfec5e4c0fa",
+  "checkpoint": "dsv4flashablit",
+  "expected_shards": 48,
+  "runtime": "vllm-backport-sm80-0.13.1",
+  "served_model": "deepseek-v4-flash-0731-ablit-leonardo",
+  "resources": {
+    "nodes": 4,
+    "gpus_per_node": 1,
+    "cpus_per_task": 8,
+    "memory": "120GB",
+    "time": "12:00:00"
+  },
+  "parallelism": {
+    "tensor": 4,
+    "pipeline": 1,
+    "data": 1
+  },
+  "engine_args": [
+    "--enable-expert-parallel",
+    "--all2all-backend",
+    "allgather_reducescatter",
+    "--dtype",
+    "bfloat16",
+    "--gpu-memory-utilization",
+    "0.90",
+    "--max-model-len",
+    "524288",
+    "--block-size",
+    "256",
+    "--max-num-seqs",
+    "8",
+    "--max-num-batched-tokens",
+    "8192",
+    "--enable-chunked-prefill",
+    "--enable-prefix-caching",
+    "--enforce-eager",
+    "--disable-custom-all-reduce",
+    "--language-model-only",
+    "--kv-cache-dtype",
+    "fp8_ds_mla",
+    "--safetensors-load-strategy",
+    "prefetch",
+    "--tool-call-parser",
+    "hermes",
+    "--enable-auto-tool-choice"
+  ],
+  "environment": {
+    "OMP_NUM_THREADS": "1",
+    "VLLM_ENGINE_READY_TIMEOUT_S": "3000"
+  },
+  "hooks": [
+    "nccl_ep"
+  ],
+  "client": {
+    "local_port": 18089,
+    "timeout_seconds": 1800,
+    "chat_template_kwargs": {
+      "thinking": false
+    }
+  },
+  "startup_timeout_seconds": 7200,
+  "validation": "4x1 topology kept by design (1-GPU reservations are abundant on this cluster). Engine flags mirror the GPU-validated deepseek41 profile (TP8/PP1, job 61300901) reduced to TP4. Perf changes vs the ~5 tok/s baseline: max-num-seqs 2 -> 8 and --enable-prefix-caching (both batch/throughput levers that never touch the inter-node all2all path). The TP4 inter-node MoE all-to-all is the real bottleneck: ~5 tok/s = RDMA broken in the container (NCCL falls back to NET/Socket). The nccl_ep smoke hook (runs before weights) prints NCCL_DEBUG with the transport: grep 'NET/IB' vs 'NET/Socket' in the job .out. If Socket: RDMA needs fixing (container device policy, EACCES on uverbs0), or fall back to nodes=1/gpus_per_node=4 (same TP4, intra-node NVLink). Weights 166.9 GB fit at TP4 (41.7 GB/card); MLA KV ~2-4 GB/seq at 524288, pool throttles rather than OOM."
+}

@@ -59,18 +59,19 @@ def profile_check(profile):
     for name in ('id', 'checkpoint', 'runtime', 'served_model'):
         identifier(profile[name])
     resources, parallel = profile['resources'], profile['parallelism']
+    if not parallel['data']: parallel['data']=1
     for name in ('nodes', 'gpus_per_node', 'cpus_per_task'):
         if type(resources[name]) is not int or resources[name] < 1:
             raise ValueError('Invalid resource: ' + name)
-    if any(type(parallel[k]) is not int or parallel[k] < 1 for k in ('tensor', 'pipeline')):
+    if any(type(parallel[k]) is not int or parallel[k] < 1 for k in ('tensor', 'pipeline', 'data')):
         raise ValueError('Invalid parallelism')
-    if parallel['tensor'] * parallel['pipeline'] != resources['nodes'] * resources['gpus_per_node']:
-        raise ValueError('TP x PP must match the allocated GPU count')
+    if parallel['tensor'] * parallel['pipeline'] * parallel['data'] != resources['nodes'] * resources['gpus_per_node']:
+        raise ValueError('TP x PP x DP must match the allocated GPU count')
     if not re.fullmatch(r'[1-9][0-9]*(?:[KMGTP]B?)?', resources['memory']):
         raise ValueError('Invalid memory request')
     if not re.fullmatch(r'(?:[0-9]+-)?[0-9]+:[0-5][0-9]:[0-5][0-9]', resources['time']):
         raise ValueError('Invalid time limit')
-    reserved = {'--served-model-name', '--tensor-parallel-size', '--pipeline-parallel-size',
+    reserved = {'--served-model-name', '--tensor-parallel-size', '--pipeline-parallel-size', '--data-parallel-size',
                 '--nnodes', '--node-rank', '--master-addr', '--master-port', '--host', '--port',
                 '--headless', '--api-key', '--config'}
     args = profile['engine_args']
