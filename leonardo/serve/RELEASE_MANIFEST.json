@@ -12,7 +12,7 @@
     "profiles/deepseek41-8gpu.json": "d350e7d67c797903780bcfbe1abacab74ce4bedd641481a9b17cf7f8c668c071",
     "profiles/deepseek41.json": "a3519da4b8209410ae2b6e3cc7576e57e7de08ded4173784cd8ae0a1b198fbc0",
     "profiles/deepseek41derisk.json": "7386bea7057af4d99d6b185d54cc89b64b2a202350e4928e328cb2920e3bcb36",
-    "profiles/dsv4flashablit.json": "7eb24232108825c68e7389c44159bce84c5c2687bfd7bcb97e5cd46fdd4a8ba0",
+    "profiles/dsv4flashablit.json": "76a34e4b3bf1fa55407a41c8f51ebb876f51180c3f4ab43142cf6b5af76eb7fb",
     "profiles/glm53.json": "dabd5597f725cd48928806e75b281e77ce669c777cc324ef121317a74d52b448",
     "profiles/qwen06b.json": "eb6ffba25e2d7ec2419ec67caa73f944d1566a5ce9ec4cd8ecdd9eb78c02758d",
     "profiles/qwen235b.json": "bd6731d40827ff3a95c6bff0529cdbd428ee54a0d585565c0f303d7a028a41e7",

@@ -37,7 +37,6 @@
     "8192",
     "--enable-chunked-prefill",
     "--enable-prefix-caching",
-    "--enforce-eager",
     "--disable-custom-all-reduce",
     "--language-model-only",
     "--kv-cache-dtype",
@@ -63,5 +62,5 @@
     }
   },
   "startup_timeout_seconds": 7200,
-  "validation": "4x1 topology kept by design (1-GPU reservations are abundant on this cluster). Engine flags mirror the GPU-validated deepseek41 profile (TP8/PP1, job 61300901) reduced to TP4. Perf changes vs the ~5 tok/s baseline: max-num-seqs 2 -> 8 and --enable-prefix-caching (both batch/throughput levers that never touch the inter-node all2all path). The TP4 inter-node MoE all-to-all is the real bottleneck: ~5 tok/s = RDMA broken in the container (NCCL falls back to NET/Socket). The nccl_ep smoke hook (runs before weights) prints NCCL_DEBUG with the transport: grep 'NET/IB' vs 'NET/Socket' in the job .out. If Socket: RDMA needs fixing (container device policy, EACCES on uverbs0), or fall back to nodes=1/gpus_per_node=4 (same TP4, intra-node NVLink). Weights 166.9 GB fit at TP4 (41.7 GB/card); MLA KV ~2-4 GB/seq at 524288, pool throttles rather than OOM."
+  "validation": "4x1 kept by design (1-GPU reservations abundant). NCCL transport AUDIT 61852009: NET/IB + GDRDMA enabled on all ranks, zero NET/Socket, nccl_ep smoke passed -> the RDMA-in-container trap from the skill is NOT the problem. Engine flags mirror validated deepseek41 (TP8/PP1, job 61300901) reduced to TP4. Perf changes vs ~5 tok/s baseline: max-num-seqs 2 -> 8, --enable-prefix-caching, and --enforce-eager REMOVED to let CUDA graphs capture (reference: deepseek41 validated 16.4 tok/s single-stream WITH eager on a 3x bigger model; eager was never A/B tested). If engine startup fails with a CUDA graph capture error, restore --enforce-eager. Inter-node EP all2all via PyNCCL is unavoidable on 1-GPU nodes (SymmMem not supported on sm80, confirmed in logs: 'Device capability 8.0 not supported'); that path caps single-stream throughput. NOT yet GPU-validated in this form: trusted only after 18_bench_serve.py and API checks."
 }
