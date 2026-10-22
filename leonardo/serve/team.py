@@ -94,9 +94,13 @@ def share(args):
             raise ValueError('No such user on Leonardo: ' + name)
     files, directories, others = [], [], 0
     for root, dirnames, filenames in os.walk(str(base)):
-        if Path(root) == base / 'staging':
+        here = Path(root)
+        if here != base and here.name.startswith('romain'):
+            dirnames[:], filenames = [], []  # personal romain* folders stay private to their owner
+            continue
+        if here == base / 'staging':
             dirnames[:], filenames = [], []  # temporary install areas; new ones inherit from staging/ itself
-        if Path(root) == base / 'users':
+        if here == base / 'users':
             dirnames[:] = []  # users/<login> stays private to its owner
         for path in [root] + [os.path.join(root, f) for f in filenames]:
             # Only the owner may change a file's ACL, and a symlink's ACL is its target's.
