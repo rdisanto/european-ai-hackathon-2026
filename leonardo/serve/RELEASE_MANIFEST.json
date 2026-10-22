@@ -5,7 +5,7 @@
     "client.py": "ad6770d5d47a8530a4a2901cfb7bcd4250af3ab43cd6dac0ff5817a7011cefbe",
     "hooks/nccl_ep.py": "e2a51d455d1e4e040854b5b97fc7c448fcbebbf89f6c66cff5cd859f976f1630",
     "hooks/warm_engram.py": "835074a2e39444c6970923bc882de291e4818af0947e05451bd6abcdfbdf9e89",
-    "inference.py": "45256fba9ec6e0767992473eebde60743ea6851d4ce25290bd756273c3dfa522",
+    "inference.py": "1f3ac7474f04f58713778f097ee40ec857eb222e77e420c33658cea5f793f4d9",
     "lifecycle.py": "bbe37d32c7765749b8ebd491e01f3b7d7863faf39c80b54a28259b0f31dc4871",
     "node.py": "87ddc57d9e504ef94cfcaa3f2342daedc93ba8acd2a98df2fc6da467f3ce2a38",
     "prepare_run.sh": "033bc136770dd19e1508894ab18b9c22c10a48a20071cb2a8588c839324b4ad5",
@@ -24,7 +24,7 @@
     "serve_model.sbatch": "ed3c145e69dc5d6f958bad6c97104d8aafd91ab23c5d2b6a9c24eb32d5b7d7d6",
     "site.example.json": "0f5ac6e19e4d709ce13b519d39883ecf13756a500b622d1ab0a49925fdd9af95",
     "submit_server.sh": "91f1f82e423e1aad97a1827a76a0874e2912130bb4d43d22dad7ed1162d006b9",
-    "team.py": "3eb526f40de4438f66a5f520c680c178e578aa5c6b0047f47afacf9e6f6fd325",
+    "team.py": "4a7e92287d1bfb27106a4080ebb4f0e30a1c83fd6929406dfff6b19e7393e011",
     "test_endpoint.py": "a2609712000ce3a4ec1f65c8c6ac2f26a29141cf6dec998974935cb39ac56776"
   }
 }

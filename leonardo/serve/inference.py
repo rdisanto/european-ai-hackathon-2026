@@ -59,7 +59,7 @@ def profile_check(profile):
     for name in ('id', 'checkpoint', 'runtime', 'served_model'):
         identifier(profile[name])
     resources, parallel = profile['resources'], profile['parallelism']
-    if not parallel['data']: parallel['data']=1
+    if not parallel.get('data'): parallel['data']=1
     for name in ('nodes', 'gpus_per_node', 'cpus_per_task'):
         if type(resources[name]) is not int or resources[name] < 1:
             raise ValueError('Invalid resource: ' + name)

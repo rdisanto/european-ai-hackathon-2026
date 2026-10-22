@@ -175,6 +175,55 @@ def up(args):
     subprocess.check_call(command, cwd=str(run))
 
 
+_ANSI_STRIP = __import__('re').compile(r'\x1b\[[0-9;]*m')
+
+
+def _display_width(text):
+    """Visible width of text with ANSI escape sequences removed."""
+    return len(_ANSI_STRIP.sub('', text))
+
+
+def render_table(headers, rows, color):
+    """A dependency-free grid table (ANSI-safe). Box-drawing glyphs when color is
+    on, plain ASCII otherwise so piped output stays safe and greppable."""
+    data = [headers] + [[str(cell) for cell in row] for row in rows]
+    widths = [max(_display_width(data[r][c]) for r in range(len(data))) for c in range(len(headers))]
+    if color:
+        tl, tm, tr, ml, mm, mr, bl, bm, br, h, v = '┌┬┐├┼┤└┴┘─│'
+    else:
+        tl, tm, tr, ml, mm, mr, bl, bm, br, h, v = '+++++++++-|'
+    def pad(cell, index):
+        gap = widths[index] - _display_width(cell)
+        return ' ' + cell + ' ' * (gap + 1) if gap >= 0 else ' ' + cell
+    def edge(left, joint, right):
+        return left + joint.join(h * (w + 2) for w in widths) + right
+    output = [edge(tl, tm, tr)]
+    for r, row in enumerate(data):
+        output.append(v + v.join(pad(row[c], c) for c in range(len(headers))) + v)
+        if r == 0:
+            output.append(edge(ml, mm, mr))
+    output.append(edge(bl, bm, br))
+    return '\n'.join(output)
+
+
+def _status_art(color, title, subtitle):
+    """Colored banner with a small rocket, or a plain header when not colorized."""
+    if not color:
+        return '\n{0}\n{1}'.format(title, subtitle)
+    rocket = ("             \x1b[1;36m▲\x1b[0m\n"
+              "            \x1b[1;36m/|\\\x1b[0m\n"
+              "           \x1b[1;36m/_|_\\\x1b[0m\n"
+              "          \x1b[1;36m▄▄██▄▄\x1b[0m\n"
+              "        \x1b[1;36m▄\x1b[0m\x1b[1;38;5;208m████████\x1b[0m\x1b[1;36m▄\x1b[0m\n"
+              "      \x1b[1;36m▄▄▀\x1b[0m\x1b[1;38;5;208m▀▀▀▀▀▀▀▀\x1b[0m\x1b[1;36m▀▀▄▄\x1b[0m\n"
+              "      \x1b[1;36m█\x1b[0m\x1b[1;38;5;208m █ █████ █ \x1b[0m\x1b[1;36m█\x1b[0m\n"
+              "       \x1b[1;36m▀▄▄▄▄▄▄▄▄▄▀\x1b[0m\n"
+              "            \x1b[1;36m██\x1b[0m\n"
+              "\x1b[1;96mLEONARDO · INFERENCE STATUS\x1b[0m\n"
+              "\x1b[2;90m{}\x1b[0m\n".format(subtitle))
+    return rocket
+
+
 def status(args):
     base = site_base(args.base)
     if not (base / 'inference-site.json').exists():
@@ -202,25 +251,69 @@ def status(args):
     if args.json:
         print(json.dumps(report, indent=2))
         return
+    color = args.color
     if jobs is None:
-        print('WARNING: squeue failed; showing runs that may already have ended.')
-    print('Installed: runtimes {}; checkpoints {}'.format(', '.join(report['installed']['runtimes']) or 'none',
-                                                         ', '.join(report['installed']['checkpoints']) or 'none'))
-    for j in report['installs']:
-        print('  installing: {name} job {job_id} {state} {elapsed}'.format(**j))
-    print('Your model servers:')
+        print(('\x1b[1;33mWARNING:\x1b[0m squeue failed' if color else 'WARNING') + '; showing runs that may already have ended.')
+
+    # Banner
+    title = 'Leonardo Inference · status'
+    subtitle = '{0} @ {1}'.format(getpass.getuser(), base)
+    print(_status_art(color, title, subtitle))
+
+    # Installed assets, one line each: runtimes then checkpoints
+    installed = report['installed']
+    print(('\x1b[1m' if color else '') + 'Installed' + ('\x1b[0m' if color else ''))
+    print('  runtimes ' + (', '.join(installed['runtimes']) if installed['runtimes'] else 'none'))
+    print('  checkpoints ' + (', '.join(installed['checkpoints']) if installed['checkpoints'] else 'none'))
+
+    installs = report['installs']
+    if installs:
+        print()
+        for j in installs:
+            state_c = {'RUNNING': '1;32', 'PENDING': '1;33', 'FAILED': '1;31'}.get(j['state'], '')
+            state = ('\x1b[{0}m{1}\x1b[0m'.format(state_c, j['state']) if state_c and color else j['state'])
+            print('  {2} installing {0} [job {1}] {3} {4}'.format(
+                j['name'], j['job_id'], '↓' if color else '-', state, j.get('elapsed', '')))
+
+    # Model servers as a table
+    print()
+    print(('\x1b[1m' if color else '') + 'Your model servers' + ('\x1b[0m' if color else ''))
+    headers = ['profile', 'job', 'state', 'time', 'status']
+    rows = []
     for s in report['servers']:
-        print('  {profile:<12} job {job_id:<10} {state:<10} {elapsed}/{limit}  {0}'.format(
-            ('READY ' + s['model'] + ' at ' + s['endpoint']) if s['ready'] else 'starting (not ready yet)', **s))
-    if not report['servers']:
+        if s['ready']:
+            status = ('\x1b[1;32mREADY \x1b[0m' + s['model'] + ' at ' + s['endpoint']) if color else ('READY ' + s['model'] + ' at ' + s['endpoint'])
+        else:
+            status = ('\x1b[1;33mstarting (not ready yet)\x1b[0m' if color else 'starting (not ready yet)')
+        state_colors = {'RUNNING': '1;32', 'PENDING': '1;33', 'COMPLETING': '1;35', 'COMPLETED': '2', 'FAILED': '1;31'}
+        state_c = state_colors.get(s['state'], '')
+        state = ('\x1b[{0}m{1}\x1b[0m'.format(state_c, s['state']) if state_c and color else s['state'])
+        rows.append([s['profile'], s['job_id'], state, '{}/{}'.format(s['elapsed'], s['limit']), status])
+    if rows:
+        print(render_table(headers, rows, color))
+    else:
         print('  none')
-    print('Your router: ' + (report['router']['summary'] if report['router'] else 'not running'))
+
+    # Router
+    print()
+    rvar = ('\x1b[1m' if color else '') + 'Your router' + ('\x1b[0m' if color else '')
+    if report['router']:
+        summary = report['router'].get('summary', '')
+        print(rvar + ': ' + summary)
+    else:
+        print(rvar + ': not running')
+
+    # Team registry
     if report['registry'] is not None:
-        print('Team registry (ready servers of everyone sharing this folder):')
-        for r in report['registry']:
-            r = {k: r.get(k, '?') for k in ('name', 'owner', 'host', 'port', 'job_id', 'slurm_expected_end')}
-            print('  {name:<36} {owner:<10} {host}:{port} job {job_id} until {slurm_expected_end}'.format(**r))
-        if not report['registry']:
+        print()
+        print(('\x1b[1m' if color else '') + 'Team registry (ready servers of everyone sharing this folder)' + ('\x1b[0m' if color else ''))
+        if report['registry']:
+            rows = []
+            for r in report['registry']:
+                r = {k: r.get(k, '?') for k in ('name', 'owner', 'host', 'port', 'job_id', 'slurm_expected_end')}
+                rows.append([r['name'], r['owner'], '{}:{}'.format(r['host'], r['port']), r['job_id'], r['slurm_expected_end']])
+            print(render_table(['name', 'owner', 'endpoint', 'job', 'until'], rows, color))
+        else:
             print('  none')
 
 
@@ -325,6 +418,7 @@ def main():
     p.add_argument('--reservation')
     p = command('status', 'show servers, router, installs and the team registry')
     p.add_argument('--json', action='store_true')
+    p.add_argument('--color', action='store_true', help='colored banner, icons and box-drawing tables')
     p = command('logs', 'show a log: job id, profile, served name or "router"')
     p.add_argument('target')
     p.add_argument('--lines', type=int, default=60)

@@ -244,7 +244,8 @@ def main():
                 words += ['--' + flag, getattr(args, flag)]
         team(args, release, *words)
     elif args.command == 'status':
-        team(args, release, 'status')
+        pretty = ['--color'] if sys.stdout.isatty() and not os.environ.get('NO_COLOR') else []
+        team(args, release, 'status', *pretty)
     elif args.command == 'logs':
         team(args, release, 'logs', args.target, '--lines', str(args.lines), *(['--follow'] if args.follow else []))
     elif args.command == 'down':
