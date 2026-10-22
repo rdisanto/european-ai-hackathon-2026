@@ -23,7 +23,7 @@
     "serve_model.sbatch": "ed3c145e69dc5d6f958bad6c97104d8aafd91ab23c5d2b6a9c24eb32d5b7d7d6",
     "site.example.json": "0f5ac6e19e4d709ce13b519d39883ecf13756a500b622d1ab0a49925fdd9af95",
     "submit_server.sh": "91f1f82e423e1aad97a1827a76a0874e2912130bb4d43d22dad7ed1162d006b9",
-    "team.py": "4a7e92287d1bfb27106a4080ebb4f0e30a1c83fd6929406dfff6b19e7393e011",
+    "team.py": "9bde83aba7efd467d618ce9748f3b5a62fa0927a064d12fc4c0bfe4d562fca2d",
     "test_endpoint.py": "a2609712000ce3a4ec1f65c8c6ac2f26a29141cf6dec998974935cb39ac56776"
   }
 }
