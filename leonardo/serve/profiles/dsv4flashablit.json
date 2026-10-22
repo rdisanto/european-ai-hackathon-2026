@@ -44,7 +44,9 @@
     "--safetensors-load-strategy",
     "prefetch",
     "--tool-call-parser",
-    "hermes",
+    "deepseek_v4",
+    "--reasoning-parser",
+    "deepseek_v4",
     "--enable-auto-tool-choice"
   ],
   "environment": {
