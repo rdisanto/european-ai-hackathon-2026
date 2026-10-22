@@ -44,6 +44,9 @@ and every step in detail.
 
 ## Installation
 
+> Newcomer? Start with [docs/QUICKSTART.md](docs/QUICKSTART.md): shell setup,
+> launching a model and reaching the router in a few commands.
+
 ### What you need
 
 - **On your laptop:** an SSH client and Python 3.7 or newer. No packages, no virtual environment: the CLI

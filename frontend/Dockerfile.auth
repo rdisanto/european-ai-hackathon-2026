@@ -1,8 +1,0 @@
-FROM node:26-alpine
-WORKDIR /app
-RUN npm install -g pnpm@12.10.1
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod
-COPY auth-server ./auth-server
-EXPOSE 3000
-CMD ["node", "auth-server/server.mjs"]
