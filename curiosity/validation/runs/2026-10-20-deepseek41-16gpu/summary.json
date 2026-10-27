@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "job_id": "61481897",
+  "date": "2026-10-20",
+  "nodes": 4,
+  "gpus": 16,
+  "parallelism": {
+    "tensor": 8,
+    "pipeline": 2,
+    "expert_parallel": true
+  },
+  "healthy_after_seconds": 900.89,
+  "client_location": "CPU-only Singularity client on the allocated inference head node; localhost HTTP",
+  "status": "Historical engine/runtime validation; unified CLI, runtime installer and router not GPU-rerun for this profile.",
+  "slurm_result": "COMPLETED / 0:0",
+  "completed_bursts": 14,
+  "successful_requests": 422,
+  "failed_requests": 0,
+  "output_tokens_per_request": 128,
+  "concurrency_levels": [
+    1,
+    4,
+    8,
+    16,
+    32,
+    50,
+    100
+  ],
+  "repeats_per_level": 2,
+  "runtime": {
+    "id": "vllm-backport-sm80-0.13.1-ppkv1",
+    "base_sif_sha256": "775d1d1acecb610301473c9b8ab74deb08bbec1766691fdf9e7c4fcea4957fa1",
+    "patch_files_sha256": {
+      "pp_kv_guard.py": "d87aba9acb44929dc2c3b6edd561ae713b8bc80d2e896bc5f3e5985d19e29aab",
+      "sitecustomize.py": "6e847d74dee3d59a11e5b9ccf1e5208de486744bb4f10d009ce5ca27003650b7"
+    }
+  },
+  "source": "Collected job 61481897; exported numerical load results and independent cross-checks in the local load-test campaign.",
+  "scope": "One operator account; finite bursts, not steady-state capacity. No CPU-offload load results; no current unified-CLI/router GPU validation."
+}

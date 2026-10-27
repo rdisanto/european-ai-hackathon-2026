@@ -1,0 +1,24 @@
+# Job 61559851 (qwen06b, vllm-0.31.0, 1 A100 on lrdn0012), 20 Oct 2026. End of the job log, verbatim.
+INFO:     Started server process [2797738]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:46086 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46092 - "GET /v1/models HTTP/1.1" 401 Unauthorized
+unauthenticated_rejected PASS
+INFO:     127.0.0.1:46102 - "GET /v1/models HTTP/1.1" 200 OK
+model_catalog PASS
+INFO:     127.0.0.1:46118 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+arithmetic PASS
+INFO:     127.0.0.1:46132 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+english_response PASS
+INFO:     127.0.0.1:46144 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+sse_streaming PASS
+INFO:     127.0.0.1:46160 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+forced_function_call PASS
+INFO:     127.0.0.1:46172 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46168 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46180 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46192 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+four_concurrent_requests PASS
+INFO:     127.0.0.1:46194 - "GET /health HTTP/1.1" 200 OK
+INFERENCE_READY {'job_id': '61559851', 'host': 'lrdn0012', 'port': 40851, 'model': 'qwen3-0.6b-leonardo', 'profile': 'qwen06b', 'runtime': 'vllm-0.31.0', 'release': 'inference/2026-10-20-unified', 'nodes': 'lrdn0012', 'checks_passed': 7, 'ready_at': '2026-10-20T17:42:13.313117+02:00', 'slurm_expected_end': '2026-10-20T18:10:50', 'note': 'Service stops about 90 seconds before allocation expiry.'}

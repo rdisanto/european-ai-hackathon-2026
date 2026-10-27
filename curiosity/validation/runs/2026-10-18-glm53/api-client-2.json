@@ -1,0 +1,393 @@
+{
+  "unauthenticated_rejected": {
+    "passed": true,
+    "result": {
+      "status": 401
+    }
+  },
+  "model_catalog": {
+    "passed": true,
+    "result": {
+      "object": "list",
+      "data": [
+        {
+          "id": "glm-5.3-flash-leonardo",
+          "object": "model",
+          "created": 1792355268,
+          "owned_by": "vllm",
+          "root": "<CHECKPOINT_DIRECTORY>",
+          "parent": null,
+          "max_model_len": 2048,
+          "permission": [
+            {
+              "id": "modelperm-a8d9eade21dd9cc1",
+              "object": "model_permission",
+              "created": 1792355268,
+              "allow_create_engine": false,
+              "allow_sampling": true,
+              "allow_logprobs": true,
+              "allow_search_indices": false,
+              "allow_view": true,
+              "allow_fine_tuning": false,
+              "organization": "*",
+              "group": null,
+              "is_blocking": false
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "arithmetic": {
+    "passed": true,
+    "result": {
+      "elapsed_seconds": 0.384,
+      "response": {
+        "id": "chatcmpl-a65ecdbd171f21da",
+        "object": "chat.completion",
+        "created": 1792355268,
+        "model": "glm-5.3-flash-leonardo",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "42",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": 154827,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.13.1-tp4-pp2-a2cac19b",
+        "usage": {
+          "prompt_tokens": 25,
+          "total_tokens": 28,
+          "completion_tokens": 3,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    }
+  },
+  "english_response": {
+    "passed": true,
+    "result": {
+      "elapsed_seconds": 2.139,
+      "response": {
+        "id": "chatcmpl-99e14cfe85b9adad",
+        "object": "chat.completion",
+        "created": 1792355268,
+        "model": "glm-5.3-flash-leonardo",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Hello! I'm an AI assistant running on a high-performance computing (HPC) system, ready to help you with your questions and tasks.",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": 154827,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.13.1-tp4-pp2-a2cac19b",
+        "usage": {
+          "prompt_tokens": 36,
+          "total_tokens": 67,
+          "completion_tokens": 31,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    }
+  },
+  "sse_streaming": {
+    "passed": true,
+    "result": {
+      "first_content_seconds": 0.376,
+      "total_seconds": 0.493,
+      "events": 5,
+      "content": "Hello there!",
+      "done": true
+    }
+  },
+  "forced_function_call": {
+    "passed": true,
+    "result": {
+      "elapsed_seconds": 1.314,
+      "response": {
+        "id": "chatcmpl-bd9686c24b77ee05",
+        "object": "chat.completion",
+        "created": 1792355271,
+        "model": "glm-5.3-flash-leonardo",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "chatcmpl-tool-bb5c9e980736ddb4",
+                  "type": "function",
+                  "function": {
+                    "name": "sum_numbers",
+                    "arguments": "{\"a\": 17, \"b\": 25}"
+                  }
+                }
+              ],
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": 154829,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.13.1-tp4-pp2-a2cac19b",
+        "usage": {
+          "prompt_tokens": 180,
+          "total_tokens": 198,
+          "completion_tokens": 18,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    }
+  },
+  "four_concurrent_requests": {
+    "passed": true,
+    "result": {
+      "batch_seconds": 0.746,
+      "responses": [
+        {
+          "elapsed_seconds": 0.685,
+          "response": {
+            "id": "chatcmpl-9eb1583d7eb52d10",
+            "object": "chat.completion",
+            "created": 1792355272,
+            "model": "glm-5.3-flash-leonardo",
+            "choices": [
+              {
+                "index": 0,
+                "message": {
+                  "role": "assistant",
+                  "content": "42",
+                  "refusal": null,
+                  "annotations": null,
+                  "audio": null,
+                  "function_call": null,
+                  "reasoning": null
+                },
+                "logprobs": null,
+                "finish_reason": "stop",
+                "stop_reason": 154827,
+                "token_ids": null,
+                "routed_experts": null
+              }
+            ],
+            "service_tier": null,
+            "system_fingerprint": "vllm-0.13.1-tp4-pp2-a2cac19b",
+            "usage": {
+              "prompt_tokens": 25,
+              "total_tokens": 28,
+              "completion_tokens": 3,
+              "prompt_tokens_details": null,
+              "completion_tokens_details": {
+                "reasoning_tokens": 0
+              }
+            },
+            "prompt_logprobs": null,
+            "prompt_token_ids": null,
+            "prompt_text": null,
+            "kv_transfer_params": null,
+            "ec_transfer_params": null,
+            "metrics": null
+          }
+        },
+        {
+          "elapsed_seconds": 0.685,
+          "response": {
+            "id": "chatcmpl-a8476c569ea0c215",
+            "object": "chat.completion",
+            "created": 1792355272,
+            "model": "glm-5.3-flash-leonardo",
+            "choices": [
+              {
+                "index": 0,
+                "message": {
+                  "role": "assistant",
+                  "content": "42",
+                  "refusal": null,
+                  "annotations": null,
+                  "audio": null,
+                  "function_call": null,
+                  "reasoning": null
+                },
+                "logprobs": null,
+                "finish_reason": "stop",
+                "stop_reason": 154827,
+                "token_ids": null,
+                "routed_experts": null
+              }
+            ],
+            "service_tier": null,
+            "system_fingerprint": "vllm-0.13.1-tp4-pp2-a2cac19b",
+            "usage": {
+              "prompt_tokens": 25,
+              "total_tokens": 28,
+              "completion_tokens": 3,
+              "prompt_tokens_details": null,
+              "completion_tokens_details": {
+                "reasoning_tokens": 0
+              }
+            },
+            "prompt_logprobs": null,
+            "prompt_token_ids": null,
+            "prompt_text": null,
+            "kv_transfer_params": null,
+            "ec_transfer_params": null,
+            "metrics": null
+          }
+        },
+        {
+          "elapsed_seconds": 0.558,
+          "response": {
+            "id": "chatcmpl-ada5101c5fce5e73",
+            "object": "chat.completion",
+            "created": 1792355272,
+            "model": "glm-5.3-flash-leonardo",
+            "choices": [
+              {
+                "index": 0,
+                "message": {
+                  "role": "assistant",
+                  "content": "42",
+                  "refusal": null,
+                  "annotations": null,
+                  "audio": null,
+                  "function_call": null,
+                  "reasoning": null
+                },
+                "logprobs": null,
+                "finish_reason": "stop",
+                "stop_reason": 154827,
+                "token_ids": null,
+                "routed_experts": null
+              }
+            ],
+            "service_tier": null,
+            "system_fingerprint": "vllm-0.13.1-tp4-pp2-a2cac19b",
+            "usage": {
+              "prompt_tokens": 25,
+              "total_tokens": 28,
+              "completion_tokens": 3,
+              "prompt_tokens_details": null,
+              "completion_tokens_details": {
+                "reasoning_tokens": 0
+              }
+            },
+            "prompt_logprobs": null,
+            "prompt_token_ids": null,
+            "prompt_text": null,
+            "kv_transfer_params": null,
+            "ec_transfer_params": null,
+            "metrics": null
+          }
+        },
+        {
+          "elapsed_seconds": 0.745,
+          "response": {
+            "id": "chatcmpl-abfc4f1824e95183",
+            "object": "chat.completion",
+            "created": 1792355272,
+            "model": "glm-5.3-flash-leonardo",
+            "choices": [
+              {
+                "index": 0,
+                "message": {
+                  "role": "assistant",
+                  "content": "42",
+                  "refusal": null,
+                  "annotations": null,
+                  "audio": null,
+                  "function_call": null,
+                  "reasoning": null
+                },
+                "logprobs": null,
+                "finish_reason": "stop",
+                "stop_reason": 154827,
+                "token_ids": null,
+                "routed_experts": null
+              }
+            ],
+            "service_tier": null,
+            "system_fingerprint": "vllm-0.13.1-tp4-pp2-a2cac19b",
+            "usage": {
+              "prompt_tokens": 25,
+              "total_tokens": 28,
+              "completion_tokens": 3,
+              "prompt_tokens_details": null,
+              "completion_tokens_details": {
+                "reasoning_tokens": 0
+              }
+            },
+            "prompt_logprobs": null,
+            "prompt_token_ids": null,
+            "prompt_text": null,
+            "kv_transfer_params": null,
+            "ec_transfer_params": null,
+            "metrics": null
+          }
+        }
+      ]
+    }
+  }
+}

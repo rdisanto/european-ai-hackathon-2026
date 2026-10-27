@@ -1,0 +1,393 @@
+{
+  "unauthenticated_rejected": {
+    "passed": true,
+    "result": {
+      "status": 401
+    }
+  },
+  "model_catalog": {
+    "passed": true,
+    "result": {
+      "object": "list",
+      "data": [
+        {
+          "id": "deepseek-v4.1-flash-1017-leonardo",
+          "object": "model",
+          "created": 1792356965,
+          "owned_by": "vllm",
+          "root": "<CHECKPOINT_DIRECTORY>",
+          "parent": null,
+          "max_model_len": 2048,
+          "permission": [
+            {
+              "id": "modelperm-b981a2f5a550b3d9",
+              "object": "model_permission",
+              "created": 1792356965,
+              "allow_create_engine": false,
+              "allow_sampling": true,
+              "allow_logprobs": true,
+              "allow_search_indices": false,
+              "allow_view": true,
+              "allow_fine_tuning": false,
+              "organization": "*",
+              "group": null,
+              "is_blocking": false
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "arithmetic": {
+    "passed": true,
+    "result": {
+      "elapsed_seconds": 0.44,
+      "response": {
+        "id": "chatcmpl-b62448a1e6b4efe8",
+        "object": "chat.completion",
+        "created": 1792356965,
+        "model": "deepseek-v4.1-flash-1017-leonardo",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "42",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.13.1-tp8-ep-6e3f4f98",
+        "usage": {
+          "prompt_tokens": 17,
+          "total_tokens": 19,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    }
+  },
+  "english_response": {
+    "passed": true,
+    "result": {
+      "elapsed_seconds": 3.585,
+      "response": {
+        "id": "chatcmpl-a3d7b4961010fa2d",
+        "object": "chat.completion",
+        "created": 1792356965,
+        "model": "deepseek-v4.1-flash-1017-leonardo",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Hello! I'm an AI assistant running on a high-performance computing (HPC) system, here to help you with your questions and tasks.",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.13.1-tp8-ep-6e3f4f98",
+        "usage": {
+          "prompt_tokens": 28,
+          "total_tokens": 58,
+          "completion_tokens": 30,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    }
+  },
+  "sse_streaming": {
+    "passed": true,
+    "result": {
+      "first_content_seconds": 0.285,
+      "total_seconds": 0.5,
+      "events": 4,
+      "content": "Hello!",
+      "done": true
+    }
+  },
+  "forced_function_call": {
+    "passed": true,
+    "result": {
+      "elapsed_seconds": 6.324,
+      "response": {
+        "id": "chatcmpl-8e676ad6af45f7aa",
+        "object": "chat.completion",
+        "created": 1792356969,
+        "model": "deepseek-v4.1-flash-1017-leonardo",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "chatcmpl-tool-aae94fb3673daf98",
+                  "type": "function",
+                  "function": {
+                    "name": "sum_numbers",
+                    "arguments": "{\"a\": 17, \"b\": 25}"
+                  }
+                }
+              ],
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.13.1-tp8-ep-6e3f4f98",
+        "usage": {
+          "prompt_tokens": 289,
+          "total_tokens": 343,
+          "completion_tokens": 54,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    }
+  },
+  "four_concurrent_requests": {
+    "passed": true,
+    "result": {
+      "batch_seconds": 0.801,
+      "responses": [
+        {
+          "elapsed_seconds": 0.601,
+          "response": {
+            "id": "chatcmpl-9413332c166e1a52",
+            "object": "chat.completion",
+            "created": 1792356976,
+            "model": "deepseek-v4.1-flash-1017-leonardo",
+            "choices": [
+              {
+                "index": 0,
+                "message": {
+                  "role": "assistant",
+                  "content": "42",
+                  "refusal": null,
+                  "annotations": null,
+                  "audio": null,
+                  "function_call": null,
+                  "reasoning": null
+                },
+                "logprobs": null,
+                "finish_reason": "stop",
+                "stop_reason": null,
+                "token_ids": null,
+                "routed_experts": null
+              }
+            ],
+            "service_tier": null,
+            "system_fingerprint": "vllm-0.13.1-tp8-ep-6e3f4f98",
+            "usage": {
+              "prompt_tokens": 17,
+              "total_tokens": 19,
+              "completion_tokens": 2,
+              "prompt_tokens_details": null,
+              "completion_tokens_details": {
+                "reasoning_tokens": 0
+              }
+            },
+            "prompt_logprobs": null,
+            "prompt_token_ids": null,
+            "prompt_text": null,
+            "kv_transfer_params": null,
+            "ec_transfer_params": null,
+            "metrics": null
+          }
+        },
+        {
+          "elapsed_seconds": 0.389,
+          "response": {
+            "id": "chatcmpl-b5811830a6a75c6c",
+            "object": "chat.completion",
+            "created": 1792356976,
+            "model": "deepseek-v4.1-flash-1017-leonardo",
+            "choices": [
+              {
+                "index": 0,
+                "message": {
+                  "role": "assistant",
+                  "content": "42",
+                  "refusal": null,
+                  "annotations": null,
+                  "audio": null,
+                  "function_call": null,
+                  "reasoning": null
+                },
+                "logprobs": null,
+                "finish_reason": "stop",
+                "stop_reason": null,
+                "token_ids": null,
+                "routed_experts": null
+              }
+            ],
+            "service_tier": null,
+            "system_fingerprint": "vllm-0.13.1-tp8-ep-6e3f4f98",
+            "usage": {
+              "prompt_tokens": 17,
+              "total_tokens": 19,
+              "completion_tokens": 2,
+              "prompt_tokens_details": null,
+              "completion_tokens_details": {
+                "reasoning_tokens": 0
+              }
+            },
+            "prompt_logprobs": null,
+            "prompt_token_ids": null,
+            "prompt_text": null,
+            "kv_transfer_params": null,
+            "ec_transfer_params": null,
+            "metrics": null
+          }
+        },
+        {
+          "elapsed_seconds": 0.798,
+          "response": {
+            "id": "chatcmpl-949b4c75f3db3c8c",
+            "object": "chat.completion",
+            "created": 1792356976,
+            "model": "deepseek-v4.1-flash-1017-leonardo",
+            "choices": [
+              {
+                "index": 0,
+                "message": {
+                  "role": "assistant",
+                  "content": "42",
+                  "refusal": null,
+                  "annotations": null,
+                  "audio": null,
+                  "function_call": null,
+                  "reasoning": null
+                },
+                "logprobs": null,
+                "finish_reason": "stop",
+                "stop_reason": null,
+                "token_ids": null,
+                "routed_experts": null
+              }
+            ],
+            "service_tier": null,
+            "system_fingerprint": "vllm-0.13.1-tp8-ep-6e3f4f98",
+            "usage": {
+              "prompt_tokens": 17,
+              "total_tokens": 19,
+              "completion_tokens": 2,
+              "prompt_tokens_details": null,
+              "completion_tokens_details": {
+                "reasoning_tokens": 0
+              }
+            },
+            "prompt_logprobs": null,
+            "prompt_token_ids": null,
+            "prompt_text": null,
+            "kv_transfer_params": null,
+            "ec_transfer_params": null,
+            "metrics": null
+          }
+        },
+        {
+          "elapsed_seconds": 0.798,
+          "response": {
+            "id": "chatcmpl-b4099d7fb796dd40",
+            "object": "chat.completion",
+            "created": 1792356976,
+            "model": "deepseek-v4.1-flash-1017-leonardo",
+            "choices": [
+              {
+                "index": 0,
+                "message": {
+                  "role": "assistant",
+                  "content": "42",
+                  "refusal": null,
+                  "annotations": null,
+                  "audio": null,
+                  "function_call": null,
+                  "reasoning": null
+                },
+                "logprobs": null,
+                "finish_reason": "stop",
+                "stop_reason": null,
+                "token_ids": null,
+                "routed_experts": null
+              }
+            ],
+            "service_tier": null,
+            "system_fingerprint": "vllm-0.13.1-tp8-ep-6e3f4f98",
+            "usage": {
+              "prompt_tokens": 17,
+              "total_tokens": 19,
+              "completion_tokens": 2,
+              "prompt_tokens_details": null,
+              "completion_tokens_details": {
+                "reasoning_tokens": 0
+              }
+            },
+            "prompt_logprobs": null,
+            "prompt_token_ids": null,
+            "prompt_text": null,
+            "kv_transfer_params": null,
+            "ec_transfer_params": null,
+            "metrics": null
+          }
+        }
+      ]
+    }
+  }
+}

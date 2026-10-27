@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "account": "",
+  "partition": "hackathon",
+  "qos": null,
+  "cpu_partition": "hackathon",
+  "endpoints": "endpoints",
+  "router": {
+    "qos": null,
+    "time": "04:00:00",
+    "cpus": 2,
+    "memory": "8000M"
+  },
+  "cluster_link": {
+    "enabled": false,
+    "server": null,
+    "fingerprint": null,
+    "proxy": null,
+    "remote_port": 9000
+  }
+}

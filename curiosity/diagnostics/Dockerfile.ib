@@ -1,0 +1,9 @@
+# Only needed if `cli.py diagnose nccl` shows NCCL falling back to NET/Socket because the image lacks
+# InfiniBand userspace libraries. Build it where you have Docker (laptop, CI), push it to a registry,
+# and add it to serve/catalog.json as a new runtime; `cli.py install` then installs it.
+ARG VLLM_TAG=v0.31.0
+FROM vllm/vllm-openai:${VLLM_TAG}
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      libibverbs1 ibverbs-providers rdma-core ibverbs-utils infiniband-diags \
+ && rm -rf /var/lib/apt/lists/*

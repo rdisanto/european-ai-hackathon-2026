@@ -1,0 +1,24 @@
+{
+  "release": "inference/2026-10-19-load-long-prefetch",
+  "base_release": "inference/2026-10-19-docs1",
+  "files": {
+    "README.md": "6c9dbf2e5693d29fa89fa9d8054ab836417d4c638bda5b021dab2ab7c64cb729",
+    "client.py": "ad6770d5d47a8530a4a2901cfb7bcd4250af3ab43cd6dac0ff5817a7011cefbe",
+    "hooks/nccl_ep.py": "e2a51d455d1e4e040854b5b97fc7c448fcbebbf89f6c66cff5cd859f976f1630",
+    "hooks/warm_engram.py": "f3be5afbc94694f6c7850ffc4d6ea5ec610fb7ceca992c2f1c2a4e0c72c0715e",
+    "inference.py": "07304c8b7692cf40915161473a349ef9d5f4c6bdb2d7530c9f95849948016ffa",
+    "lifecycle.py": "3222e290aaf259db1413e615f1090471c3f47caa786c25ff0576a8518eb4a9ad",
+    "node.py": "27af37c2200621ebb83b6ac87a72d48048a8408debaea3a7f7123a73f6210e16",
+    "prepare_run.sh": "033bc136770dd19e1508894ab18b9c22c10a48a20071cb2a8588c839324b4ad5",
+    "profiles/deepseek41-loadgpu.json": "c98cde4087f13c4c971a360dad9b30301fc8767b7579c572a4f3b4e8b6e9d758",
+    "profiles/deepseek41-loadpp2fix.json": "45231b6f99969b4e461741577a7752d2e0b3bb73515f110a45350d996d49de47",
+    "profiles/deepseek41-loadpp2warm.json": "c472d84101ab20a0694de65746acad8758b578aa2d9b59da382c222231e988d0",
+    "profiles/deepseek41-native-prefetch.json": "a3a3248e09da32d73c3c28fada08981166bc983490760cb16af1904a1901f853",
+    "serve_model.sbatch": "ed3c145e69dc5d6f958bad6c97104d8aafd91ab23c5d2b6a9c24eb32d5b7d7d6",
+    "submit_server.sh": "91f1f82e423e1aad97a1827a76a0874e2912130bb4d43d22dad7ed1162d006b9",
+    "test_endpoint.py": "d1dc4ce617054963e3f1d472bbd3988ecad980e48853f1c2933e3d44cc1c1941",
+    "benchmark_serving.py": "fa6429c1ec8fb5cf53ebd8edd7f6aea7b211180fe95a2765dc2dbb6a633bd92b",
+    "load_job.py": "76686f328fb38b6b8e4e84cf758108b257148e53584d66103368a6a3a4ae406b",
+    "load_job.sbatch": "57428939a9855ed9bf439047348b3a3152a5d1a38ebe5eb0d0473a5b01478a91"
+  }
+}

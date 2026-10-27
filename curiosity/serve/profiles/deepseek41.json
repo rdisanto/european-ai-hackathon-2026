@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "id": "deepseek41",
+  "model_id": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+  "revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
+  "checkpoint": "deepseek41",
+  "expected_shards": 48,
+  "runtime": "vllm-backport-sm80-0.13.1",
+  "served_model": "deepseek-v4.1-flash-1017-leonardo",
+  "resources": {
+    "nodes": 2,
+    "gpus_per_node": 4,
+    "cpus_per_task": 32,
+    "memory": "480GB",
+    "time": "02:00:00"
+  },
+  "parallelism": {
+    "tensor": 8,
+    "pipeline": 1
+  },
+  "engine_args": [
+    "--enable-expert-parallel",
+    "--all2all-backend",
+    "allgather_reducescatter",
+    "--dtype",
+    "bfloat16",
+    "--gpu-memory-utilization",
+    "0.90",
+    "--max-model-len",
+    "2048",
+    "--max-num-seqs",
+    "2",
+    "--max-num-batched-tokens",
+    "2048",
+    "--enforce-eager",
+    "--disable-custom-all-reduce",
+    "--language-model-only",
+    "--engram-config",
+    "{\"cpu_offload\":true}",
+    "--kv-cache-dtype",
+    "fp8_ds_mla",
+    "--safetensors-load-strategy",
+    "lazy",
+    "--tokenizer-mode",
+    "deepseek_v41",
+    "--reasoning-parser",
+    "deepseek_v41",
+    "--tool-call-parser",
+    "deepseek_v41",
+    "--enable-auto-tool-choice"
+  ],
+  "environment": {
+    "OMP_NUM_THREADS": "1",
+    "VLLM_ENGINE_READY_TIMEOUT_S": "3000"
+  },
+  "hooks": [
+    "nccl_ep",
+    "warm_engram"
+  ],
+  "client": {
+    "local_port": 18084,
+    "timeout_seconds": 300,
+    "chat_template_kwargs": {
+      "thinking": false
+    }
+  },
+  "startup_timeout_seconds": 4800,
+  "validation": "Common launcher validated on Leonardo with one operator account, job 61300901: seven English API checks plus two SSH client suites. Other accounts and sustained application load remain unvalidated. This snapshot changes only shared port allocation; the port correction was GPU-validated with Qwen in job 61389137. No GLM/DeepSeek GPU rerun is claimed."
+}

@@ -1,0 +1,115 @@
+{
+  "source_sha256": "3326435f857c903711939d4f6b2776395262729b464b3973949c1234a163ff3f",
+  "guard": "worker-local-uniform-kv-v1",
+  "tests": {
+    "empty_projected_group": {
+      "baseline": {
+        "num_blocks": 8,
+        "group_slots": 2,
+        "tensors": [
+          {
+            "layers": [
+              "remote.layer"
+            ],
+            "size": 32768,
+            "offset": 0,
+            "layer_stride": 32768,
+            "block_stride": 4096
+          },
+          {
+            "layers": [
+              "local.layer"
+            ],
+            "size": 32768,
+            "offset": 0,
+            "layer_stride": 32768,
+            "block_stride": 4096
+          }
+        ]
+      },
+      "guarded": {
+        "num_blocks": 8,
+        "group_slots": 2,
+        "tensors": [
+          {
+            "layers": [
+              "local.layer"
+            ],
+            "size": 32768,
+            "offset": 0,
+            "layer_stride": 32768,
+            "block_stride": 4096
+          }
+        ]
+      },
+      "passed": true
+    },
+    "partly_projected_group": {
+      "baseline": {
+        "num_blocks": 8,
+        "group_slots": 1,
+        "tensors": [
+          {
+            "layers": [
+              "remote.layer",
+              "local.layer"
+            ],
+            "size": 32768,
+            "offset": 0,
+            "layer_stride": 32768,
+            "block_stride": 4096
+          }
+        ]
+      },
+      "guarded": {
+        "num_blocks": 8,
+        "group_slots": 1,
+        "tensors": [
+          {
+            "layers": [
+              "local.layer"
+            ],
+            "size": 32768,
+            "offset": 0,
+            "layer_stride": 32768,
+            "block_stride": 4096
+          }
+        ]
+      },
+      "passed": true
+    },
+    "ordinary_local_group": {
+      "baseline": {
+        "num_blocks": 8,
+        "group_slots": 1,
+        "tensors": [
+          {
+            "layers": [
+              "local.layer"
+            ],
+            "size": 32768,
+            "offset": 0,
+            "layer_stride": 32768,
+            "block_stride": 4096
+          }
+        ]
+      },
+      "guarded": {
+        "num_blocks": 8,
+        "group_slots": 1,
+        "tensors": [
+          {
+            "layers": [
+              "local.layer"
+            ],
+            "size": 32768,
+            "offset": 0,
+            "layer_stride": 32768,
+            "block_stride": 4096
+          }
+        ]
+      },
+      "passed": true
+    }
+  }
+}

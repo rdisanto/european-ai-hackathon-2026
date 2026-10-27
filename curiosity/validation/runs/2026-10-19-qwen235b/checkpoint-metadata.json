@@ -1,0 +1,11 @@
+{
+  "model_id": "Qwen/Qwen3-235B-A22B-FP8",
+  "declared_revision": "39eb2b067ea6b8e3e1dd97d3cd0c7ffeaf3e1a35",
+  "shards": 48,
+  "shard_bytes": 239044149304,
+  "metadata_sha256": {
+    "config.json": "702c46d431bb984db9035a1225186bbfdb52c0d19c82104df4a37cd005e0369e",
+    "tokenizer_config.json": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101",
+    "model.safetensors.index.json": "e03d4abec9611fca05844d2c8b5a08318ddc3c86acfb9481a0ef5692bf76e6d6"
+  }
+}

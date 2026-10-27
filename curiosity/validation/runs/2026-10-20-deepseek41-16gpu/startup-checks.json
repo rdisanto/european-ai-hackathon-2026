@@ -1,0 +1,23 @@
+{
+  "unauthenticated_rejected": {
+    "passed": true
+  },
+  "model_catalog": {
+    "passed": true
+  },
+  "arithmetic": {
+    "passed": true
+  },
+  "english_response": {
+    "passed": true
+  },
+  "sse_streaming": {
+    "passed": true
+  },
+  "forced_function_call": {
+    "passed": true
+  },
+  "four_concurrent_requests": {
+    "passed": true
+  }
+}
