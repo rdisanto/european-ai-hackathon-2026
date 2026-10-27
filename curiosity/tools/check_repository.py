@@ -40,7 +40,7 @@ def main():
     if build(manifest['release'])['files'] != manifest['files']:
         raise SystemExit('FAIL: serve/RELEASE_MANIFEST.json is stale: run python3 tools/update_manifest.py')
     if render_agentgateway.OUTPUT.read_text() != render_agentgateway.render():
-        raise SystemExit('FAIL: infrastructure/leonardo/agentgateway.yaml is stale: run python3 tools/render_agentgateway.py')
+        raise SystemExit('FAIL: infrastructure/curiosity/agentgateway.yaml is stale: run python3 tools/render_agentgateway.py')
 
     record = json.loads((ROOT / 'validation/validated_code.json').read_text())
     for model, run in record['runs'].items():

@@ -11,7 +11,7 @@
       "object": "list",
       "data": [
         {
-          "id": "glm-5.3-flash-leonardo",
+          "id": "glm-5.3-flash-curiosity",
           "object": "model",
           "created": 1792355191,
           "owned_by": "vllm",
@@ -46,7 +46,7 @@
         "id": "chatcmpl-90c072dde6862a4b",
         "object": "chat.completion",
         "created": 1792355191,
-        "model": "glm-5.3-flash-leonardo",
+        "model": "glm-5.3-flash-curiosity",
         "choices": [
           {
             "index": 0,
@@ -94,7 +94,7 @@
         "id": "chatcmpl-b97b5b19c253d8f8",
         "object": "chat.completion",
         "created": 1792355192,
-        "model": "glm-5.3-flash-leonardo",
+        "model": "glm-5.3-flash-curiosity",
         "choices": [
           {
             "index": 0,
@@ -152,7 +152,7 @@
         "id": "chatcmpl-9f981e5f80977bee",
         "object": "chat.completion",
         "created": 1792355195,
-        "model": "glm-5.3-flash-leonardo",
+        "model": "glm-5.3-flash-curiosity",
         "choices": [
           {
             "index": 0,
@@ -213,7 +213,7 @@
             "id": "chatcmpl-b500f48b9f0e7997",
             "object": "chat.completion",
             "created": 1792355197,
-            "model": "glm-5.3-flash-leonardo",
+            "model": "glm-5.3-flash-curiosity",
             "choices": [
               {
                 "index": 0,
@@ -258,7 +258,7 @@
             "id": "chatcmpl-b6f4ca3f72b0269b",
             "object": "chat.completion",
             "created": 1792355197,
-            "model": "glm-5.3-flash-leonardo",
+            "model": "glm-5.3-flash-curiosity",
             "choices": [
               {
                 "index": 0,
@@ -303,7 +303,7 @@
             "id": "chatcmpl-b3c48a608f7b51f3",
             "object": "chat.completion",
             "created": 1792355197,
-            "model": "glm-5.3-flash-leonardo",
+            "model": "glm-5.3-flash-curiosity",
             "choices": [
               {
                 "index": 0,
@@ -348,7 +348,7 @@
             "id": "chatcmpl-903c849bac2fe3ce",
             "object": "chat.completion",
             "created": 1792355197,
-            "model": "glm-5.3-flash-leonardo",
+            "model": "glm-5.3-flash-curiosity",
             "choices": [
               {
                 "index": 0,

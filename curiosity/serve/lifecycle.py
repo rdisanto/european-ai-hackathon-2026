@@ -41,7 +41,7 @@ def alive(pid):
     except FileNotFoundError:
         if Path('/proc').exists():
             return False
-        # Allows lifecycle regression tests on macOS; Leonardo uses /proc above.
+        # Allows lifecycle regression tests on macOS; Curiosity uses /proc above.
         try:
             os.kill(pid, 0)
             return True

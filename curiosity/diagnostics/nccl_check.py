@@ -9,7 +9,7 @@ import socket
 import time
 
 # vLLM initializes CUDA forward-compatibility paths before torch loads CUDA.
-# The standalone check must do this too on Leonardo's older host driver.
+# The standalone check must do this too on Curiosity's older host driver.
 import vllm
 import torch
 import torch.distributed as dist

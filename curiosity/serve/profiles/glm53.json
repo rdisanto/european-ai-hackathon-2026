@@ -5,13 +5,6 @@
   "checkpoint": "glm53",
   "runtime": "vllm-openai-docker-0.32",
   "served_model": "glm-5.3",
-  "resources": {
-    "nodes": 1,
-    "gpus_per_node": 4,
-    "cpus_per_task": 8,
-    "memory": "480GB",
-    "time": "12:00:00"
-  },
   "parallelism": {
     "tensor": 4,
     "pipeline": 1,

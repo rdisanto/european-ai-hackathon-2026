@@ -6,7 +6,7 @@
   "checkpoint": "qwen35",
   "expected_shards": 39,
   "runtime": "vllm-backport-sm80-0.13.1",
-  "served_model": "qwen3.5-122b-a10b-fp8-leonardo",
+  "served_model": "qwen3.5-122b-a10b-fp8-curiosity",
   "resources": {
     "nodes": 4,
     "gpus_per_node": 1,

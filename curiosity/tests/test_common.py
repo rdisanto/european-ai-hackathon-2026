@@ -152,9 +152,12 @@ class Framework(unittest.TestCase):
             obj.update(edit)
             with self.assertRaises(ValueError):
                 inference.profile_check(obj)
-        p['parallelism']['tensor'] = 8
+        # resources are now optional (stage/B300 profiles like glm53 omit them), so the
+        # TP-mismatch check must run against a profile that still pins nodes x gpus_per_node.
+        q = inference.load(RELEASE / 'profiles/deepseek41.json')
+        q['parallelism']['tensor'] = 16  # exceeds deepseek41's 2 nodes x 4 GPUs
         with self.assertRaises(ValueError):
-            inference.profile_check(p)
+            inference.profile_check(q)
         (self.base / 'checkpoints/glm53/shard-0.safetensors').unlink()
         result = subprocess.run([sys.executable, str(RELEASE / 'inference.py'), 'prepare', 'glm53', '--base', str(self.base)], env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.assertNotEqual(result.returncode, 0)
@@ -317,9 +320,9 @@ class Framework(unittest.TestCase):
         self.assertEqual(report['registry'], [])
         self.assertEqual(report['installed']['runtimes'], sorted(inference.catalog()['runtimes']))
         (run / 'qwen06b-common-12345.out').write_text('line 1\nINFERENCE_READY\n')
-        for target in ('12345', 'qwen06b', 'qwen3-0.6b-leonardo'):
+        for target in ('12345', 'qwen06b', 'qwen3-0.6b-curiosity'):
             self.assertIn('INFERENCE_READY', self.team('logs', target).stdout.decode())
-        self.team('down', 'qwen3-0.6b-leonardo')
+        self.team('down', 'qwen3-0.6b-curiosity')
         self.assertEqual((self.home / 'scancel-args').read_text().split(), ['12345'])
         self.assertNotEqual(self.team('down', 'glm53', check=False).returncode, 0)
 
@@ -367,7 +370,7 @@ class Framework(unittest.TestCase):
         self.assertTrue(calls[0].endswith('install/runtime.sbatch vllm-0.31.0'))
         self.assertIn('--dependency=afterok:701', calls[1])  # qwen06b weights wait for its runtime
         self.assertNotIn('--dependency', calls[2])
-        self.assertIn('LEONARDO_RELEASE=' + str(REPO), calls[0])
+        self.assertIn('CURIOSITY_RELEASE=' + str(REPO), calls[0])
         (self.base / 'checkpoints/qwen06b/download_manifest.json').write_text('{}')
         self.assertIn('checkpoint qwen06b: installed', self.team('install', 'qwen06b').stdout.decode())
 
@@ -389,7 +392,7 @@ class Framework(unittest.TestCase):
         cli = [sys.executable, str(REPO / 'cli.py'), '--user', 'tester', '--base', str(self.base)]
         output = subprocess.check_output(cli + ['up', 'qwen06b', '--qos', 'boost_qos_dbg'], env=self.env).decode()
         self.assertIn('Submitted job 12345', output)
-        releases = list((self.home / '.leonardo-inference/releases').iterdir())
+        releases = list((self.home / '.curiosity-inference/releases').iterdir())
         self.assertEqual(len(releases), 1)
         self.assertEqual(releases[0].stat().st_mode & 0o077, 0)
         for path in ('serve/team.py', 'install/runtime.sbatch', 'diagnostics/probe.sbatch'):
@@ -402,7 +405,7 @@ class Framework(unittest.TestCase):
         token = subprocess.check_output(cli + ['router', 'token'], env=self.env, stderr=subprocess.DEVNULL).decode().strip()
         self.assertGreaterEqual(len(token), 32)
         self.assertEqual(subprocess.check_output(cli + ['router', 'token'], env=self.env).decode().strip(), token)
-        self.assertEqual(len(list((self.home / '.leonardo-inference/releases').iterdir())), 1)
+        self.assertEqual(len(list((self.home / '.curiosity-inference/releases').iterdir())), 1)
         self.assertEqual(subprocess.run(cli[:2], env=self.env, stdout=subprocess.PIPE).returncode, 0)  # bare call: help
 
     def test_forward_adds_and_removes_its_port_forward(self):
@@ -411,7 +414,7 @@ class Framework(unittest.TestCase):
                      '  [[ " $* " == *" -O forward "* ]] && exit "${FORWARD_RC:-0}"\n'
                      '  [[ " $* " == *" -O check "* ]] && exit 1\n  exit 0; fi\n'
                      'while [[ "$1" == -* ]]; do [[ "$1" == -[oL] ]] && shift; shift; done\nshift\nexec bash -c "$*"\n')
-        self.command('squeue', '#!/bin/bash\nprintf "900|leonardo-router|RUNNING|0:10|4:00:00|login08\\n"\n')
+        self.command('squeue', '#!/bin/bash\nprintf "900|curiosity-router|RUNNING|0:10|4:00:00|login08\\n"\n')
         endpoint = self.base / 'users' / getpass.getuser() / 'router/.runtime/endpoint.json'
         endpoint.parent.mkdir(parents=True)
         inference.save(endpoint, {'job_id': '900', 'host': 'login08', 'port': 41900, 'cluster_link': False})
@@ -426,9 +429,9 @@ class Framework(unittest.TestCase):
         self.assertIn(b'Could not listen on 127.0.0.1:18123', busy.stderr)
 
     def test_jobs_run_with_plain_sbatch_from_the_repository_root(self):
-        # As Slurm would run them: no LEONARDO_RELEASE, the submit directory is the repository root.
+        # As Slurm would run them: no CURIOSITY_RELEASE, the submit directory is the repository root.
         env = dict(self.env, BASE=str(self.base), SLURM_JOB_ID='1', SLURM_SUBMIT_DIR=str(REPO.parent))
-        env.pop('LEONARDO_RELEASE', None)
+        env.pop('CURIOSITY_RELEASE', None)
         result = subprocess.run(['bash', str(REPO / 'install/runtime.sbatch'), 'vllm-0.31.0'], env=env,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -451,7 +454,7 @@ class Framework(unittest.TestCase):
         self.assertTrue((directory / 'ROUTER.json').is_file() and (directory / 'router.sbatch').is_file())
         line = output.splitlines()[-1]
         self.assertTrue(line.startswith('cd {} && sbatch '.format(directory)), line)
-        self.assertIn('--job-name=leonardo-router', shlex.split(line))
+        self.assertIn('--job-name=curiosity-router', shlex.split(line))
         self.assertFalse((self.home / 'sbatch-calls').exists())
 
     def test_failed_launcher_never_publishes_endpoint(self):

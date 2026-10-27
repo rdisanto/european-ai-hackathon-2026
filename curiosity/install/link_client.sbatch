@@ -2,7 +2,7 @@
 # Download the pinned chisel client (serve/catalog.json "tools") to $BASE/tools. The router uses it
 # for the cluster link, which stays off until the organisers approve it.
 # Submitted by `cli.py install --link-client` on the CPU queue, which has internet. By hand, from the
-# repository root:  BASE=$WORK/<team folder> sbatch -A <account> leonardo/install/link_client.sbatch
+# repository root:  BASE=$WORK/<team folder> sbatch -A <account> curiosity/install/link_client.sbatch
 #SBATCH --job-name=install-link-client
 #SBATCH --partition=lrd_all_serial
 #SBATCH --output=%x-%j.out
@@ -11,11 +11,11 @@
 #SBATCH --time=00:10:00
 set -euo pipefail
 BASE="${BASE:?}"
-# The leonardo/ folder with serve/: set by cli.py, or found from where you ran sbatch.
-for RELEASE in "${LEONARDO_RELEASE:-}" "${SLURM_SUBMIT_DIR:-.}/leonardo" "${SLURM_SUBMIT_DIR:-.}"; do
+# The curiosity/ folder with serve/: set by cli.py, or found from where you ran sbatch.
+for RELEASE in "${CURIOSITY_RELEASE:-}" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}"; do
     [[ -n "$RELEASE" && -f "$RELEASE/serve/catalog.json" ]] && break
 done
-[[ -f "$RELEASE/serve/catalog.json" ]] || { echo 'Run sbatch from the repository root, or set LEONARDO_RELEASE to its leonardo/ folder' >&2; exit 1; }
+[[ -f "$RELEASE/serve/catalog.json" ]] || { echo 'Run sbatch from the repository root, or set CURIOSITY_RELEASE to its curiosity/ folder' >&2; exit 1; }
 read -r VERSION URL SHA_GZ SHA < <(python3 -c 'import json, sys
 t = json.load(open(sys.argv[1]))["tools"]["chisel"]
 print(t["version"], t["url"], t["sha256_gz"], t["sha256"])' "$RELEASE/serve/catalog.json")

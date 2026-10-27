@@ -63,19 +63,37 @@ def profile_check(profile):
         raise ValueError('Unsupported profile schema')
     for name in ('id', 'checkpoint', 'runtime', 'served_model'):
         identifier(profile[name])
-    resources, parallel = profile['resources'], profile['parallelism']
-    if not parallel.get('data'): parallel['data']=1
-    for name in ('nodes', 'gpus_per_node', 'cpus_per_task'):
-        if type(resources[name]) is not int or resources[name] < 1:
-            raise ValueError('Invalid resource: ' + name)
+    # Stage (docker/B300) profiles may omit "resources": the single reservation owns the
+    # hardware, so only the parallelism-derived defaults below are used (submit_command/up
+    # and the SBATCH template read from this block). A100/Legacy profiles keep it and it is
+    # still validated, so nothing regresses on the per-model `up` path.
+    resources = profile.get('resources') or {}
+    parallel = profile['parallelism']
+    if not parallel.get('data'):
+        parallel['data'] = 1
     if any(type(parallel[k]) is not int or parallel[k] < 1 for k in ('tensor', 'pipeline', 'data')):
         raise ValueError('Invalid parallelism')
-    if parallel['tensor'] * parallel['pipeline'] * parallel['data'] != resources['nodes'] * resources['gpus_per_node']:
+    nodes = resources.get('nodes', 1)
+    gpus_per_node = resources.get('gpus_per_node', parallel['tensor'] * parallel['pipeline'] * parallel['data'])
+    if type(nodes) is not int or nodes < 1:
+        raise ValueError('Invalid resource: nodes')
+    if type(gpus_per_node) is not int or gpus_per_node < 1:
+        raise ValueError('Invalid resource: gpus_per_node')
+    if 'cpus_per_task' in resources and (type(resources['cpus_per_task']) is not int or resources['cpus_per_task'] < 1):
+        raise ValueError('Invalid resource: cpus_per_task')
+    if parallel['tensor'] * parallel['pipeline'] * parallel['data'] != nodes * gpus_per_node:
         raise ValueError('TP x PP x DP must match the allocated GPU count')
-    if not re.fullmatch(r'[1-9][0-9]*(?:[KMGTP]B?)?', resources['memory']):
+    if 'memory' in resources and not re.fullmatch(r'[1-9][0-9]*(?:[KMGTP]B?)?', resources['memory']):
         raise ValueError('Invalid memory request')
-    if not re.fullmatch(r'(?:[0-9]+-)?[0-9]+:[0-5][0-9]:[0-5][0-9]', resources['time']):
+    if 'time' in resources and not re.fullmatch(r'(?:[0-9]+-)?[0-9]+:[0-5][0-9]:[0-5][0-9]', resources['time']):
         raise ValueError('Invalid time limit')
+    # Materialise safe defaults so submit_command/up never KeyError on a stage-only profile.
+    resources.setdefault('nodes', nodes)
+    resources.setdefault('gpus_per_node', gpus_per_node)
+    resources.setdefault('cpus_per_task', 8)
+    resources.setdefault('memory', '480GB')
+    resources.setdefault('time', '11:00:00')
+    profile['resources'] = resources
     reserved = {'--served-model-name', '--tensor-parallel-size', '--pipeline-parallel-size', '--data-parallel-size',
                 '--nnodes', '--node-rank', '--master-addr', '--master-port', '--host', '--port',
                 '--headless', '--api-key', '--config'}
@@ -199,7 +217,7 @@ def site_base(value):
     raw = value or os.environ.get('VLLM_TEAM_BASE')
     if not raw:
         raise ValueError('Specify --base or VLLM_TEAM_BASE')
-    # The admin CLI passes '$WORK/<team>' unexpanded so it resolves on Leonardo.
+    # The admin CLI passes '$WORK/<team>' unexpanded so it resolves on Curiosity.
     return Path(os.path.expandvars(raw)).expanduser().resolve()
 
 

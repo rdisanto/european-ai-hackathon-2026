@@ -11,11 +11,11 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 
-LEONARDO = Path(__file__).resolve().parents[1]
-SERVE = LEONARDO / 'serve'
-EVIDENCE = LEONARDO / 'validation/runs/2026-10-20-deepseek41-16gpu'
+CURIOSITY = Path(__file__).resolve().parents[1]
+SERVE = CURIOSITY / 'serve'
+EVIDENCE = CURIOSITY / 'validation/runs/2026-10-20-deepseek41-16gpu'
 PATCH = SERVE / 'runtime_patches/pp_kv_empty_groups'
-sys.path.insert(0, str(LEONARDO / 'install'))
+sys.path.insert(0, str(CURIOSITY / 'install'))
 import overlay_files
 from register_runtime import register
 

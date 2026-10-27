@@ -8,7 +8,7 @@ cenv() { export "${ENVPFX}$1=$2"; }
 
 cenv HF_HUB_OFFLINE 1
 cenv VLLM_NO_USAGE_STATS 1
-# Leonardo's host driver (535) is older than the images' CUDA: load their forward-compat libraries.
+# Curiosity's host driver (535) is older than the images' CUDA: load their forward-compat libraries.
 cenv VLLM_ENABLE_CUDA_COMPATIBILITY 1
 for v in $(compgen -e | grep -E '^(NCCL_|GLOO_|UCX_|TORCH_NCCL_|TORCH_DISTRIBUTED_)' || true); do
   cenv "$v" "${!v}"

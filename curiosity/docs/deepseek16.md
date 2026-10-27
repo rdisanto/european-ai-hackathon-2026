@@ -1,6 +1,6 @@
 # DeepSeek on sixteen GPUs
 
-`deepseek41-16gpu` adds the engine configuration that completed Leonardo job
+`deepseek41-16gpu` adds the engine configuration that completed Curiosity job
 `61481897` on 20 October 2026. It is separate from the existing eight-GPU
 `deepseek41` profile, including its API model name and private cache namespace.
 
@@ -15,7 +15,7 @@
 | Safetensors load strategy | lazy | native background prefetch |
 | Pre-start hooks | EP probe, Engram warming | none (the probe supports PP1 only) |
 | Runtime | `vllm-backport-sm80-0.13.1` | `vllm-backport-sm80-0.13.1-ppkv1` |
-| API model name | `deepseek-v4.1-flash-1017-leonardo` | `deepseek-v4.1-flash-1017-16gpu-leonardo` |
+| API model name | `deepseek-v4.1-flash-1017-curiosity` | `deepseek-v4.1-flash-1017-16gpu-curiosity` |
 | Direct-client port | 18084 | 18086 |
 
 Both profiles use the same pinned checkpoint and image. The new profile requests
@@ -38,7 +38,7 @@ The hook only intercepts `vllm.v1.core.kv_cache_utils`, accepts source SHA-256
 exactly one matching function and allocation loop. It compiles verified source
 instead of loading an old `.pyc`. Unknown source raises an import error; failure
 to install the hook terminates Python. The hook runs inside the modern-Python
-vLLM container; the installer and CLI remain compatible with Leonardo's login
+vLLM container; the installer and CLI remain compatible with Curiosity's login
 Python. An existing different overlay `sitecustomize.py` is rejected rather
 than overwritten.
 
@@ -52,22 +52,22 @@ creates a separate runtime; the base runtime is never patched in place.
 
 ## Use from the repository root
 
-Use the same `LEONARDO_USER`, `LEONARDO_HOST` and `LEONARDO_BASE` as the team CLI.
+Use the same `CURIOSITY_USER`, `CURIOSITY_HOST` and `CURIOSITY_BASE` as the team CLI.
 If the checkpoint is already installed, it is reused; there is no new weights
 download for this profile. The extra patched runtime must still be installed:
 
 ```bash
-./leonardo/cli.py install deepseek41-16gpu
-./leonardo/cli.py status
-./leonardo/cli.py logs <install-job-id> --follow
+./curiosity/cli.py install deepseek41-16gpu
+./curiosity/cli.py status
+./curiosity/cli.py logs <install-job-id> --follow
 ```
 
 Once installation is ready, start a coordinated validation run:
 
 ```bash
-./leonardo/cli.py up deepseek41-16gpu
-./leonardo/cli.py logs deepseek41-16gpu --follow
-./leonardo/cli.py status
+./curiosity/cli.py up deepseek41-16gpu
+./curiosity/cli.py logs deepseek41-16gpu --follow
+./curiosity/cli.py status
 ```
 
 The historical cold start was about 15 minutes excluding queue time. The default
@@ -78,14 +78,14 @@ The two-hour limit is a Slurm resource request, not a guarantee of availability.
 
 Start the router and SSH forwarding as in the [main guide](../README.md#call-the-models).
 Use base URL `http://127.0.0.1:18000/v1`, your private router token as the API key,
-and model `deepseek-v4.1-flash-1017-16gpu-leonardo`. Requests should include
+and model `deepseek-v4.1-flash-1017-16gpu-curiosity`. Requests should include
 `"chat_template_kwargs": {"thinking": false}`. The router port stays 18000;
 18086 is only for the optional direct-to-server client.
 
 Stop the model allocation when finished:
 
 ```bash
-./leonardo/cli.py down deepseek41-16gpu
+./curiosity/cli.py down deepseek41-16gpu
 ```
 
 The generated optional agentgateway route includes the new API model name. This

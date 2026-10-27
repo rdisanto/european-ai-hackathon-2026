@@ -1,4 +1,4 @@
-"""Team-folder commands, run on a Leonardo login node; cli.py runs them for you over SSH.
+"""Team-folder commands, run on a Curiosity login node; cli.py runs them for you over SSH.
 
 Every command takes --base, the team folder (e.g. '$WORK/team_vllm'; variables are expanded here).
 
@@ -33,7 +33,7 @@ RELEASE = ROOT.parent  # holds serve/, install/ and diagnostics/
 
 
 def cpu_partition(site):
-    # Leonardo has a CPU queue with internet; on curiosity the GPU nodes have it too, so the
+    # Curiosity has a CPU queue with internet; on curiosity the GPU nodes have it too, so the
     # site partition is the fallback when the site file names no CPU partition.
     return site.get('cpu_partition') or site.get('partition') or 'lrd_all_serial'
 
@@ -43,7 +43,7 @@ def script_job(base, site, script, arguments, name, output, partition, dependenc
     account = os.environ.get('SBATCH_ACCOUNT') or site.get('account')
     if account == 'YOUR_PROJECT':
         raise ValueError('Set "account" in {}/inference-site.json'.format(base))
-    exports = ['ALL', 'BASE=' + str(base), 'LEONARDO_RELEASE=' + str(RELEASE)]
+    exports = ['ALL', 'BASE=' + str(base), 'CURIOSITY_RELEASE=' + str(RELEASE)]
     exports += ['{}={}'.format(k, v) for k, v in sorted((environment or {}).items())]
     if any(',' in value for value in exports):
         raise ValueError('Values passed to jobs must not contain commas')
@@ -98,7 +98,7 @@ def share(args):
         try:
             pwd.getpwnam(name)
         except KeyError:
-            raise ValueError('No such user on Leonardo: ' + name)
+            raise ValueError('No such user on Curiosity: ' + name)
     files, directories, others = [], [], 0
     for root, dirnames, filenames in os.walk(str(base)):
         here = Path(root)
@@ -243,7 +243,7 @@ def _status_art(color, title, subtitle):
               "      \x1b[1;36m█\x1b[0m\x1b[1;38;5;208m █ █████ █ \x1b[0m\x1b[1;36m█\x1b[0m\n"
               "       \x1b[1;36m▀▄▄▄▄▄▄▄▄▄▀\x1b[0m\n"
               "            \x1b[1;36m██\x1b[0m\n"
-              "\x1b[1;96mLEONARDO · INFERENCE STATUS\x1b[0m\n"
+              "\x1b[1;96mCURIOSITY · INFERENCE STATUS\x1b[0m\n"
               "\x1b[2;90m{}\x1b[0m\n".format(subtitle))
     return rocket
 
@@ -280,7 +280,7 @@ def status(args):
         print(('\x1b[1;33mWARNING:\x1b[0m squeue failed' if color else 'WARNING') + '; showing runs that may already have ended.')
 
     # Banner
-    title = 'Leonardo Inference · status'
+    title = 'Curiosity Inference · status'
     subtitle = '{0} @ {1}'.format(getpass.getuser(), base)
     print(_status_art(color, title, subtitle))
 
@@ -431,7 +431,7 @@ def stage_reserve(base, site, time_override, qos, reservation, restart=False):
                '--nodes=1', '--ntasks-per-node=1', '--gres=gpu:8', '--cpus-per-task=32', '--mem=480GB',
                '--time=' + inference.time_limit(time_override or '11:00:00'),
                '--signal=B:TERM@60', '--output=' + str(logs),
-               '--export=' + ','.join(['ALL', 'BASE=' + str(base), 'LEONARDO_RELEASE=' + str(RELEASE)])]
+               '--export=' + ','.join(['ALL', 'BASE=' + str(base), 'CURIOSITY_RELEASE=' + str(RELEASE)])]
     if account:
         command.append('--account=' + inference.identifier(account))
     if qos:

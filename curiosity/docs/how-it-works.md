@@ -6,19 +6,19 @@ how the router connects those APIs to the cluster, so you can change things with
 
 ## Overview
 
-Leonardo is a Slurm cluster: you get GPUs by submitting jobs, every job ends at a time limit, GPU nodes
+Curiosity is a Slurm cluster: you get GPUs by submitting jobs, every job ends at a time limit, GPU nodes
 have no internet, and only the CPU queue `lrd_all_serial` does. Everything is driven from your laptop
-with `leonardo/cli.py`, which logs in to Leonardo with your own account over SSH and runs the matching
+with `curiosity/cli.py`, which logs in to Curiosity with your own account over SSH and runs the matching
 script there. The parts:
 
 | Part | What it is | Runs where |
 | --- | --- | --- |
-| **Team folder** (`$BASE`) | A folder in `$WORK` with the container images (*runtimes*), model weights (*checkpoints*) and settings, shared with your teammates. | Leonardo's shared file system |
+| **Team folder** (`$BASE`) | A folder in `$WORK` with the container images (*runtimes*), model weights (*checkpoints*) and settings, shared with your teammates. | Curiosity's shared file system |
 | **Install jobs** | Download runtimes and checkpoints into the team folder. | CPU queue (has internet) |
 | **Model server** | One vLLM instance in a Singularity container. It gets a fresh API key per run and is announced in the team folder's registry only after a set of API checks has passed. | GPU nodes, as a Slurm job |
 | **Router** | One entry point for all of *your* running model servers: it routes each request by its `model` field and swaps your router token for that server's key. Not to be confused with agentgateway, which is the app's gateway in Kubernetes. | CPU queue, as a Slurm job that renews itself |
 | **SSH port forward** (`cli.py forward`) | Makes the router reachable on your laptop: `ssh -L` from the laptop through the login node to the router's node and port. For testing and personal use. | Your laptop |
-| **Cluster link** (optional) | Lets agentgateway in GKE reach the router. The router job connects **out** to a [chisel](https://github.com/jpillora/chisel) server in the cluster, so nobody logs in to Leonardo from Kubernetes. Off until the organisers approve it. | Router job and GKE |
+| **Cluster link** (optional) | Lets agentgateway in GKE reach the router. The router job connects **out** to a [chisel](https://github.com/jpillora/chisel) server in the cluster, so nobody logs in to Curiosity from Kubernetes. Off until the organisers approve it. | Router job and GKE |
 
 In the diagram, an arrow points from the side that opens the connection to the side that accepts it:
 
@@ -28,7 +28,7 @@ flowchart TB
     CLI[cli.py]
     FWD[cli.py forward]
   end
-  subgraph Leonardo
+  subgraph Curiosity
     LOGIN[login node]
     subgraph CPU["CPU queue"]
       INSTALL[install jobs]
@@ -64,7 +64,7 @@ flowchart TB
 | Registry of ready servers (addresses only, never keys) | `$BASE/endpoints/` | shared |
 | Install logs, cluster link client | `$BASE/logs/`, `$BASE/tools/` | shared |
 | Your runs (code copy, API key, logs, check results), caches, router, diagnostic logs | `$BASE/users/<login>/` | only you (mode 700) |
-| Code uploaded by `cli.py` | `~/.leonardo-inference/releases/<hash>/` on Leonardo | only you |
+| Code uploaded by `cli.py` | `~/.curiosity-inference/releases/<hash>/` on Curiosity | only you |
 
 Your personal folder is private because it holds API keys and the router token; the rest of the team
 folder is shared with whoever you name. The rest of this page explains each step in detail.
@@ -73,13 +73,13 @@ folder is shared with whoever you name. The rest of this page explains each step
 
 ```mermaid
 flowchart LR
-  subgraph Git["Git: leonardo/serve"]
+  subgraph Git["Git: curiosity/serve"]
     P[profiles/*.json] --> I[inference.py]
     I --> S[serve_model.sbatch]
     S --> N[node.py, one per node]
     S --> L[lifecycle.py]
   end
-  subgraph Base["$BASE on Leonardo, installed once"]
+  subgraph Base["$BASE on Curiosity, installed once"]
     R[runtimes/: image.sif + python-overlay]
     W[checkpoints/: model weights]
     C[inference-site.json]
@@ -97,7 +97,7 @@ flowchart LR
 
 | Layer | Where | Who writes it |
 | --- | --- | --- |
-| Code and profiles | `leonardo/serve/` in this repo, uploaded by `cli.py` to `~/.leonardo-inference/releases/<hash>/serve/` | Git |
+| Code and profiles | `curiosity/serve/` in this repo, uploaded by `cli.py` to `~/.curiosity-inference/releases/<hash>/serve/` | Git |
 | Assets: runtime image, Python overlay, weights, site config | `$BASE` (the team folder under `$WORK`) | Installed once with `install/` |
 | Run state: copied code, API key, job id, endpoint, evidence | `$BASE/users/<login>/runs/<profile>-<random>/`, under a mode 700 folder | `inference.py prepare`, then the job |
 | Per-user caches (Triton, TileLang, vLLM, HF) | `$BASE/users/<login>/cache/<profile>--<runtime>/` | Each user's own jobs |
@@ -141,7 +141,7 @@ flowchart LR
 
 - **GPU nodes have no internet.** Everything is downloaded beforehand on `lrd_all_serial`, and the container
   runs with `HF_HUB_OFFLINE=1`.
-- **Every Leonardo user can reach any port on a compute node.** vLLM must listen on `0.0.0.0` so the login
+- **Every Curiosity user can reach any port on a compute node.** vLLM must listen on `0.0.0.0` so the login
   node can forward to it, so each run gets its own API key, and run directories are private.
 - **A100s are SM80.** Stock vLLM has no usable sparse-MLA backend for GLM on A100 and no native FP8. The
   shared runtime is a community SM80 backport (vLLM 0.13.1), plus the official TileLang 0.1.12 wheel in a
@@ -163,10 +163,10 @@ listens on `41000 + job id % 10000`. It is the only process that holds server ke
 - **Routing** by the JSON `model` field of each POST to that server, with `Authorization` replaced by the
   server's own key. `GET /v1/models` lists the routable models; `GET /health` needs no token.
 - **Authentication** with one bearer token in `$BASE/users/<login>/router_token` (compared in constant
-  time). The cluster holds the same token in the `leonardo-router` Secret.
+  time). The cluster holds the same token in the `curiosity-router` Secret.
 - **Streaming**: responses are relayed as they arrive (`read1`), so SSE is not buffered.
 - **Chaining**: each job first queues its successor with `--dependency=singleton` until the `--hours` given
-  to `router up` run out. `down router` cancels all jobs named `leonardo-router`, pending ones included.
+  to `router up` run out. `down router` cancels all jobs named `curiosity-router`, pending ones included.
 - **Cluster link** only when the site sets `cluster_link.enabled`. Then `router up` copies the chisel
   binary from `$BASE/tools/` after checking its SHA-256 against `catalog.json`, and the job runs
   `chisel client --fingerprint <pinned> <server> R:0.0.0.0:<remote_port>:127.0.0.1:<port>`
@@ -202,7 +202,7 @@ extends and registers it (`install/runtime.sbatch`).
 
 `serve/RELEASE_MANIFEST.json` lists every file in `serve/` with its SHA-256. `prepare` refuses to run if
 anything differs, and copies exactly those files into the run directory. This protects a shared checkout
-on Leonardo from silent edits. After changing anything in `serve/`, run:
+on Curiosity from silent edits. After changing anything in `serve/`, run:
 
 ```bash
 python3 tools/update_manifest.py

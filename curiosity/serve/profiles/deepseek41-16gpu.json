@@ -6,7 +6,7 @@
   "checkpoint": "deepseek41",
   "expected_shards": 48,
   "runtime": "vllm-backport-sm80-0.13.1-ppkv1",
-  "served_model": "deepseek-v4.1-flash-1017-16gpu-leonardo",
+  "served_model": "deepseek-v4.1-flash-1017-16gpu-curiosity",
   "resources": {
     "nodes": 4,
     "gpus_per_node": 4,
@@ -62,5 +62,5 @@
     }
   },
   "startup_timeout_seconds": 4800,
-  "validation": "Restored byte-for-byte (except id, served name, port and this note) from validation/runs/2026-10-20-deepseek41-16gpu/model-profile.json: the experimental Leonardo four-node/sixteen-GPU TP8/PP2 shape on the worker-local PP KV guard runtime. NOT adapted to curiosity: the SM80 backport image does not run on B300; kept so the ppkv1 runtime and its guard stay covered by tests."
+  "validation": "Restored byte-for-byte (except id, served name, port and this note) from validation/runs/2026-10-20-deepseek41-16gpu/model-profile.json: the experimental Curiosity four-node/sixteen-GPU TP8/PP2 shape on the worker-local PP KV guard runtime. NOT adapted to curiosity: the SM80 backport image does not run on B300; kept so the ppkv1 runtime and its guard stay covered by tests."
 }

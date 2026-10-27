@@ -18,7 +18,7 @@ def main():
     parser.add_argument('--profile', type=Path, required=True)
     parser.add_argument('--key-file', type=Path, default=Path('.runtime/api_key'))
     parser.add_argument('--endpoint', type=Path)
-    parser.add_argument('--ssh-host', default='login01-ext.leonardo.cineca.it')
+    parser.add_argument('--ssh-host', default='login01-ext.curiosity.cineca.it')
     parser.add_argument('--user')
     parser.add_argument('--local-port', type=int)
     parser.add_argument('--base-url')

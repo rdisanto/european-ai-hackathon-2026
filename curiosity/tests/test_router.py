@@ -217,7 +217,7 @@ class RouterJobs(unittest.TestCase):
         directory = self.mine / 'router'
         calls = (self.home / 'sbatch-calls').read_text().split('\n')
         self.assertEqual(calls[0], str(directory))
-        for flag in ('--job-name=leonardo-router', '--dependency=singleton', '--partition=hackathon',
+        for flag in ('--job-name=curiosity-router', '--dependency=singleton', '--partition=hackathon',
                      '--time=04:00:00', '--chdir=' + str(directory)):
             self.assertIn(flag, calls)
         self.assertFalse(any(c.startswith('--qos') for c in calls))
@@ -234,17 +234,17 @@ class RouterJobs(unittest.TestCase):
         self.assertEqual((self.home / 'sbatch-calls').read_text().count('--dependency=singleton'), 2)
 
         # A running router is not replaced silently.
-        self.command('squeue', '#!/bin/bash\nprintf "777|leonardo-router|RUNNING|1:00|4:00:00|n1\\n"\n')
+        self.command('squeue', '#!/bin/bash\nprintf "777|curiosity-router|RUNNING|1:00|4:00:00|n1\\n"\n')
         result = self.team('router', 'up')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(b'--restart', result.stderr)
 
     def test_cluster_link_needs_settings_password_and_verified_chisel(self):
-        self.site['cluster_link'].update(enabled=True, server='https://example.invalid/leonardo-link', fingerprint='abc')
+        self.site['cluster_link'].update(enabled=True, server='https://example.invalid/curiosity-link', fingerprint='abc')
         (self.base / 'inference-site.json').write_text(json.dumps(self.site))
         self.assertIn(b'link_auth', self.team('router', 'up').stderr)
         result = subprocess.run([sys.executable, str(RELEASE / 'team.py'), 'router', 'link-auth', '--base', str(self.base)],
-                                input=b'leonardo:secret\n', env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                input=b'curiosity:secret\n', env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.mine / 'link_auth').stat().st_mode & 0o077, 0)
         (self.base / 'tools/chisel-1.13.0').write_bytes(b'not the pinned binary')

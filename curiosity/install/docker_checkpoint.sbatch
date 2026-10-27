@@ -17,10 +17,10 @@ set -euo pipefail
 NAME="${1:?usage: docker_checkpoint.sbatch <profile name>}"
 BASE="${BASE:?}"
 # The curiosity/ folder with serve/: set by cli.py, or found from where you ran sbatch.
-for RELEASE in "${LEONARDO_RELEASE:-}" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}"; do
+for RELEASE in "${CURIOSITY_RELEASE:-}" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}"; do
     [[ -n "$RELEASE" && -f "$RELEASE/serve/catalog.json" ]] && break
 done
-[[ -f "$RELEASE/serve/catalog.json" ]] || { echo 'Run sbatch from the repository root, or set LEONARDO_RELEASE to its curiosity/ folder' >&2; exit 1; }
+[[ -f "$RELEASE/serve/catalog.json" ]] || { echo 'Run sbatch from the repository root, or set CURIOSITY_RELEASE to its curiosity/ folder' >&2; exit 1; }
 
 # curiosity has no docker in the PATH: load the rootless-docker module (cf. glm53_b300_first_run.sh).
 if ! command -v docker >/dev/null; then

@@ -11,7 +11,7 @@
       "object": "list",
       "data": [
         {
-          "id": "deepseek-v4.1-flash-1017-leonardo",
+          "id": "deepseek-v4.1-flash-1017-curiosity",
           "object": "model",
           "created": 1792356932,
           "owned_by": "vllm",
@@ -46,7 +46,7 @@
         "id": "chatcmpl-a71603e7d048e53d",
         "object": "chat.completion",
         "created": 1792356932,
-        "model": "deepseek-v4.1-flash-1017-leonardo",
+        "model": "deepseek-v4.1-flash-1017-curiosity",
         "choices": [
           {
             "index": 0,
@@ -94,7 +94,7 @@
         "id": "chatcmpl-87aa04a6e0294473",
         "object": "chat.completion",
         "created": 1792356933,
-        "model": "deepseek-v4.1-flash-1017-leonardo",
+        "model": "deepseek-v4.1-flash-1017-curiosity",
         "choices": [
           {
             "index": 0,
@@ -152,7 +152,7 @@
         "id": "chatcmpl-9c4f3fe9cdc79e9d",
         "object": "chat.completion",
         "created": 1792356937,
-        "model": "deepseek-v4.1-flash-1017-leonardo",
+        "model": "deepseek-v4.1-flash-1017-curiosity",
         "choices": [
           {
             "index": 0,
@@ -213,7 +213,7 @@
             "id": "chatcmpl-ad834e38665d0f4e",
             "object": "chat.completion",
             "created": 1792356944,
-            "model": "deepseek-v4.1-flash-1017-leonardo",
+            "model": "deepseek-v4.1-flash-1017-curiosity",
             "choices": [
               {
                 "index": 0,
@@ -258,7 +258,7 @@
             "id": "chatcmpl-825d68ac8cac39a1",
             "object": "chat.completion",
             "created": 1792356944,
-            "model": "deepseek-v4.1-flash-1017-leonardo",
+            "model": "deepseek-v4.1-flash-1017-curiosity",
             "choices": [
               {
                 "index": 0,
@@ -303,7 +303,7 @@
             "id": "chatcmpl-bac0d6ed9df1047e",
             "object": "chat.completion",
             "created": 1792356944,
-            "model": "deepseek-v4.1-flash-1017-leonardo",
+            "model": "deepseek-v4.1-flash-1017-curiosity",
             "choices": [
               {
                 "index": 0,
@@ -348,7 +348,7 @@
             "id": "chatcmpl-b6da1ad260ab1ace",
             "object": "chat.completion",
             "created": 1792356944,
-            "model": "deepseek-v4.1-flash-1017-leonardo",
+            "model": "deepseek-v4.1-flash-1017-curiosity",
             "choices": [
               {
                 "index": 0,

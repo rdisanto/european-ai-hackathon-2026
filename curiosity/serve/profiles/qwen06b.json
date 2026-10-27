@@ -6,7 +6,7 @@
   "checkpoint": "qwen06b",
   "expected_shards": 1,
   "runtime": "vllm-0.31.0",
-  "served_model": "qwen3-0.6b-leonardo",
+  "served_model": "qwen3-0.6b-curiosity",
   "resources": {
     "nodes": 1,
     "gpus_per_node": 1,

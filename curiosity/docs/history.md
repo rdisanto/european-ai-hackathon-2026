@@ -4,7 +4,7 @@
 
 | Date | What happened |
 | --- | --- |
-| 7 Oct | Starter kit (`leonardo-vllm`, now `bringup/`): stock vLLM 0.31 with Qwen3-0.6B on 1 GPU and on 2 nodes × 4 GPUs (TP4/PP2, no Ray). NCCL used InfiniBand with GPUDirect RDMA. Reached from a laptop through `ssh -L` via the login node. |
+| 7 Oct | Starter kit (`curiosity-vllm`, now `bringup/`): stock vLLM 0.31 with Qwen3-0.6B on 1 GPU and on 2 nodes × 4 GPUs (TP4/PP2, no Ray). NCCL used InfiniBand with GPUDirect RDMA. Reached from a laptop through `ssh -L` via the login node. |
 | 8 Oct | Qwen3-235B-A22B-FP8 on stock vLLM 0.31: 2 nodes, TP4/PP2, Marlin FP8 weight-only kernels, 2,048-token context, 4 sequences. Eager safetensors loading after slow mmap reads on Lustre. |
 | 13 Oct | GLM-5.3-Flash. Stock vLLM had no usable sparse-MLA backend on A100, so it switched to the community SM80 backport (vLLM 0.13.1) and repaired TileLang in a separate overlay. |
 | 17 Oct | Junghwa published the work as [Jules0315/Guardrails-vllm](https://github.com/Jules0315/Guardrails-vllm), with personal paths and accounts replaced by placeholders (`team_vllm`, `YOUR_PROJECT`). |
@@ -12,7 +12,7 @@
 | 19 Oct | Qwen3-235B moved onto the common runtime (job 61389137, 7/7 ×3). The API port base moved from 21000 to 31000 after it was found that API and master ports could collide for job suffixes 8000–8999. |
 | 20 Oct | Copied into this repository and consolidated (below). |
 | 20 Oct | Unified: `bringup/` folded into `serve/` (stock vLLM runtime, one-GPU profile, check suites) and `diagnostics/`; team registry, router job, laptop CLI for everything from `init` to `down`, opt-in cluster link to GKE. |
-| 20 Oct | First runs of the unified launcher on Leonardo, from a fresh team folder: install of the stock runtime and Qwen3-0.6B, then `qwen06b` (job 61559851) with 7/7 checks and a streamed reply through the router. The first two attempts failed only the exact-`42` checks: the model answered `17 + 25 = 42`, so those checks now accept phrased answers. |
+| 20 Oct | First runs of the unified launcher on Curiosity, from a fresh team folder: install of the stock runtime and Qwen3-0.6B, then `qwen06b` (job 61559851) with 7/7 checks and a streamed reply through the router. The first two attempts failed only the exact-`42` checks: the model answered `17 + 25 = 42`, so those checks now accept phrased answers. |
 | 27 Oct | Curiosity B300 adaptation (`curiosity/` folder): a `docker` runtime kind in the catalog (image pulled on the GPU node, GPU mode probed, every engine flag and parser name verified against the image before the 704 GiB cold load), `glm53` rewritten to the GLM-5.3 743B recipe (TP=EP=4 on one node, KV fp8_e4m3, MTP, 1M context / 3 seqs), `dsv4flashablit` moved onto one B300 node with parser candidates resolved from the image registry, router upstream timeout raised to 1 h for 1M-token prefills, and site defaults retargeted to partition `hackathon` (no QoS, optional account). |
 
 Startup times to a healthy API (cold caches, excluding queue): Qwen 7.0 min, GLM 13.3 min, DeepSeek 25.8 min.
@@ -69,7 +69,7 @@ Nothing is lost: the original repository stays unchanged at
 `candidates/glm53/per-user-2026-10-13/preflight.py` there.
 
 The install scripts were rewritten for the generic layout and have not yet been re-run in this form.
-Expect to debug paths on the first fresh install. The team's existing installation on Leonardo does not
+Expect to debug paths on the first fresh install. The team's existing installation on Curiosity does not
 need them.
 
 ## Unifying `bringup/` into `serve/`
@@ -83,7 +83,7 @@ endpoint files. They are now one path:
 | `02_vllm_single.sbatch`, `04_vllm_multinode.sbatch`, `run_vllm.sh` | profiles on the `vllm-0.31.0` runtime, such as `qwen06b`, through `serve/` |
 | `smoke_test.sh` | `test_endpoint.py` with the `minimal` (or any other) check suite |
 | `common.sh` endpoint files and mkdir locks | `serve/registry.py`: same atomic locks, JSON records, stale-lock takeover via `squeue` |
-| per-user key in `~/.config/leonardo-vllm/` | a fresh key per run, as `serve/` always did; the router holds them |
+| per-user key in `~/.config/curiosity-vllm/` | a fresh key per run, as `serve/` always did; the router holds them |
 | `tunnel.sh` (follows an endpoint over SSH) | `cli.py forward` to the router, or `client.py tunnel` to one server |
 | `01_probe.sbatch`, `03_nccl_check.sbatch`, `Dockerfile.ib` | `diagnostics/`, now using a registered runtime instead of `common.sh` |
 

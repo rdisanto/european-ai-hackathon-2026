@@ -21,4 +21,4 @@ INFO:     127.0.0.1:46180 - "POST /v1/chat/completions HTTP/1.1" 200 OK
 INFO:     127.0.0.1:46192 - "POST /v1/chat/completions HTTP/1.1" 200 OK
 four_concurrent_requests PASS
 INFO:     127.0.0.1:46194 - "GET /health HTTP/1.1" 200 OK
-INFERENCE_READY {'job_id': '61559851', 'host': 'lrdn0012', 'port': 40851, 'model': 'qwen3-0.6b-leonardo', 'profile': 'qwen06b', 'runtime': 'vllm-0.31.0', 'release': 'inference/2026-10-20-unified', 'nodes': 'lrdn0012', 'checks_passed': 7, 'ready_at': '2026-10-20T17:42:13.313117+02:00', 'slurm_expected_end': '2026-10-20T18:10:50', 'note': 'Service stops about 90 seconds before allocation expiry.'}
+INFERENCE_READY {'job_id': '61559851', 'host': 'lrdn0012', 'port': 40851, 'model': 'qwen3-0.6b-curiosity', 'profile': 'qwen06b', 'runtime': 'vllm-0.31.0', 'release': 'inference/2026-10-20-unified', 'nodes': 'lrdn0012', 'checks_passed': 7, 'ready_at': '2026-10-20T17:42:13.313117+02:00', 'slurm_expected_end': '2026-10-20T18:10:50', 'note': 'Service stops about 90 seconds before allocation expiry.'}

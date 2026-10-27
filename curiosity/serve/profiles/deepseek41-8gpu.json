@@ -6,7 +6,7 @@
   "checkpoint": "deepseek41",
   "expected_shards": 48,
   "runtime": "vllm-backport-sm80-0.13.1-ppkv1",
-  "served_model": "deepseek-v4.1-flash-1017-16gpu-leonardo",
+  "served_model": "deepseek-v4.1-flash-1017-16gpu-curiosity",
   "resources": {
     "nodes": 8,
     "gpus_per_node": 1,

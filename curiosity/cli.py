@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Run Leonardo inference from your laptop, over your own SSH login to Leonardo.
+"""Run Curiosity inference from your laptop, over your own SSH login to Curiosity.
 
 Every command opens (or reuses, for 30 minutes) one SSH connection to a login node, uploads this
-checkout's serve/, install/ and diagnostics/ to ~/.leonardo-inference/releases/<hash>/ if Leonardo
+checkout's serve/, install/ and diagnostics/ to ~/.curiosity-inference/releases/<hash>/ if Curiosity
 does not have that version yet, and runs serve/team.py there. Nothing needs to be installed on the
-laptop or on Leonardo besides Python (3.7+ here, the system python3 there).
+laptop or on Curiosity besides Python (3.7+ here, the system python3 there).
 
 Settings (environment variables or options before the command):
-  LEONARDO_USER   your CINECA login (--user)
-  LEONARDO_BASE   the team folder on Leonardo, e.g. '$WORK/team_vllm' in single quotes (--base)
-  LEONARDO_HOST   the login node you use or were assigned (--host, default login01-ext.leonardo.cineca.it)
+  CURIOSITY_USER   your CINECA login (--user)
+  CURIOSITY_BASE   the team folder on Curiosity, e.g. '$WORK/team_vllm' in single quotes (--base)
+  CURIOSITY_HOST   the login node you use or were assigned (--host, default login01-ext.curiosity.cineca.it)
 
 Typical first run, from the repository root:
-  ./leonardo/cli.py init --account <Slurm project account>
-  ./leonardo/cli.py install qwen06b
-  ./leonardo/cli.py up qwen06b --qos boost_qos_dbg --time 00:30:00
-  ./leonardo/cli.py router up && ./leonardo/cli.py forward
+  ./curiosity/cli.py init --account <Slurm project account>
+  ./curiosity/cli.py install qwen06b
+  ./curiosity/cli.py up qwen06b --qos boost_qos_dbg --time 00:30:00
+  ./curiosity/cli.py router up && ./curiosity/cli.py forward
 
-Run ./leonardo/cli.py <command> --help for each command's options and the files it runs.
-leonardo/docs/slurm-jobs.md describes the Slurm jobs and how to submit them without this CLI.
+Run ./curiosity/cli.py <command> --help for each command's options and the files it runs.
+curiosity/docs/slurm-jobs.md describes the Slurm jobs and how to submit them without this CLI.
 """
 import argparse
 import hashlib
@@ -32,13 +32,13 @@ import sys
 import tarfile
 import time
 
-LEONARDO = Path(__file__).resolve().parent
-sys.path.insert(0, str(LEONARDO / 'tools'))
+CURIOSITY = Path(__file__).resolve().parent
+sys.path.insert(0, str(CURIOSITY / 'tools'))
 from update_manifest import build  # noqa: E402
 
-STATE = '"$HOME/.leonardo-inference"'
+STATE = '"$HOME/.curiosity-inference"'
 
-# What each command runs on Leonardo; shown in --help and in the README.
+# What each command runs on Curiosity; shown in --help and in the README.
 COMMANDS = {
     'init': ('create the team folder and its settings file',
              'serve/team.py init: creates runtimes/, checkpoints/, endpoints/, users/, logs/, tools/ and\n'
@@ -79,11 +79,11 @@ COMMANDS = {
               'models on their own 4-GPU slices while running the reused router (router.py serve). load/unload\\n'
               'drop command files that the supervisor inside the reservation polls and acts on; forward reaches the\\n'
               'stage router over SSH like the normal router.'),
-    'sync': ('only upload this checkout to Leonardo', 'Nothing runs; prints where the release is.'),
+    'sync': ('only upload this checkout to Curiosity', 'Nothing runs; prints where the release is.'),
 }
 
 
-CONTROL_PATH = os.path.expanduser('~/.ssh/leonardo-%C')  # one shared, authenticated connection
+CONTROL_PATH = os.path.expanduser('~/.ssh/curiosity-%C')  # one shared, authenticated connection
 
 
 def ssh_command(args):
@@ -107,7 +107,7 @@ def forward(args, spec):
     try:
         while subprocess.run(control + ['-O', 'check', target], stderr=subprocess.DEVNULL).returncode == 0:
             time.sleep(5)
-        print('The SSH connection to Leonardo closed; run forward again.', file=sys.stderr)
+        print('The SSH connection to Curiosity closed; run forward again.', file=sys.stderr)
     except KeyboardInterrupt:
         pass
     finally:
@@ -115,7 +115,7 @@ def forward(args, spec):
 
 
 def remote(args, command, data=None, capture=False):
-    """Run `command` in a login shell on Leonardo, so $WORK and modules are set up."""
+    """Run `command` in a login shell on Curiosity, so $WORK and modules are set up."""
     script = 'umask 077; ' + command
     result = subprocess.run(ssh_command(args) + ['bash -lc ' + shlex.quote(script)], input=data,
                             stdout=subprocess.PIPE if capture else None)
@@ -125,12 +125,12 @@ def remote(args, command, data=None, capture=False):
 
 
 def release_files():
-    manifest = json.loads((LEONARDO / 'serve/RELEASE_MANIFEST.json').read_text())
+    manifest = json.loads((CURIOSITY / 'serve/RELEASE_MANIFEST.json').read_text())
     if build(manifest['release'])['files'] != manifest['files']:
-        raise SystemExit('leonardo/serve/RELEASE_MANIFEST.json is stale: run python3 leonardo/tools/update_manifest.py')
+        raise SystemExit('curiosity/serve/RELEASE_MANIFEST.json is stale: run python3 curiosity/tools/update_manifest.py')
     names = ['serve/' + name for name in manifest['files']] + ['serve/RELEASE_MANIFEST.json']
     for folder in ('install', 'diagnostics'):
-        names += [p.relative_to(LEONARDO).as_posix() for p in (LEONARDO / folder).rglob('*')
+        names += [p.relative_to(CURIOSITY).as_posix() for p in (CURIOSITY / folder).rglob('*')
                   if p.is_file() and '__pycache__' not in p.parts]
     return sorted(names)
 
@@ -141,7 +141,7 @@ def release_archive():
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
         for name in names:
-            data = (LEONARDO / name).read_bytes()
+            data = (CURIOSITY / name).read_bytes()
             digest.update(name.encode() + b'\0' + hashlib.sha256(data).digest())
             info = tarfile.TarInfo(name)
             info.size, info.mode = len(data), (0o700 if name.endswith(('.sh', '.sbatch')) else 0o600)
@@ -166,17 +166,17 @@ def team(args, release, *words, data=None, capture=False):
 
 def parser():
     top = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    top.add_argument('--user', default=os.environ.get('LEONARDO_USER'), help='your CINECA login (LEONARDO_USER)')
-    top.add_argument('--host', default=os.environ.get('LEONARDO_HOST', 'login01-ext.leonardo.cineca.it'),
-                     help='login node you use or were assigned, e.g. login02-ext.leonardo.cineca.it (LEONARDO_HOST)')
-    top.add_argument('--base', default=os.environ.get('LEONARDO_BASE'),
-                     help="team folder on Leonardo, expanded there, e.g. '$WORK/team_vllm' (LEONARDO_BASE)")
+    top.add_argument('--user', default=os.environ.get('CURIOSITY_USER'), help='your CINECA login (CURIOSITY_USER)')
+    top.add_argument('--host', default=os.environ.get('CURIOSITY_HOST', 'login01-ext.curiosity.cineca.it'),
+                     help='login node you use or were assigned, e.g. login02-ext.curiosity.cineca.it (CURIOSITY_HOST)')
+    top.add_argument('--base', default=os.environ.get('CURIOSITY_BASE'),
+                     help="team folder on Curiosity, expanded there, e.g. '$WORK/team_vllm' (CURIOSITY_BASE)")
     sub = top.add_subparsers(dest='command', metavar='COMMAND')
 
     def command(name):
         summary, runs = COMMANDS[name]
         return sub.add_parser(name, help=summary, description=summary[0].upper() + summary[1:] + '.',
-                              epilog='On Leonardo: ' + runs, formatter_class=argparse.RawDescriptionHelpFormatter)
+                              epilog='On Curiosity: ' + runs, formatter_class=argparse.RawDescriptionHelpFormatter)
     p = command('init')
     p.add_argument('--account', help='Slurm project account, if this cluster needs one (ask your mentor or admin)')
     p.add_argument('--partition', help='GPU partition (default boost_usr_prod)')
@@ -187,10 +187,10 @@ def parser():
     p.add_argument('logins', nargs='+', metavar='LOGIN', help='CINECA logins of your teammates')
     p.add_argument('--revoke', action='store_true', help='remove their access instead')
     p = command('install')
-    p.add_argument('profiles', nargs='*', metavar='PROFILE', help='profiles from leonardo/serve/profiles/, e.g. qwen06b')
+    p.add_argument('profiles', nargs='*', metavar='PROFILE', help='profiles from curiosity/serve/profiles/, e.g. qwen06b')
     p.add_argument('--link-client', action='store_true', help='also the chisel client for the cluster link')
     p = command('up')
-    p.add_argument('profile', help='a profile from leonardo/serve/profiles/, e.g. qwen235b')
+    p.add_argument('profile', help='a profile from curiosity/serve/profiles/, e.g. qwen235b')
     p.add_argument('--qos', help='e.g. boost_qos_dbg: starts sooner, at most 30 minutes')
     p.add_argument('--time', help='time limit, e.g. 00:30:00 (default: the profile\'s)')
     p.add_argument('--reservation', help='Slurm reservation on workshop days')
@@ -213,7 +213,7 @@ def parser():
     p.add_argument('check', choices=['probe', 'reach', 'nccl'])
     p.add_argument('--target', help='reach: host:port printed by a running probe')
     p.add_argument('--proxy', help='probe/reach: also try this HTTP proxy, e.g. the hackathon proxy')
-    p.add_argument('--link-url', help='reach: also check the cluster link server, e.g. https://<host>/leonardo-link')
+    p.add_argument('--link-url', help='reach: also check the cluster link server, e.g. https://<host>/curiosity-link')
     p.add_argument('--runtime', help='nccl: installed runtime to test (default vllm-0.31.0)')
     p = command('stage')
     stage_sub = p.add_subparsers(dest='stage_action', required=True)
@@ -240,13 +240,13 @@ def main():
         top.print_help()
         return
     if not args.user:
-        top.error('set --user or LEONARDO_USER to your own CINECA login')
+        top.error('set --user or CURIOSITY_USER to your own CINECA login')
     if not args.base and args.command != 'sync':
-        top.error("set --base or LEONARDO_BASE to the team folder, e.g. '$WORK/team_vllm'")
+        top.error("set --base or CURIOSITY_BASE to the team folder, e.g. '$WORK/team_vllm'")
 
     release = sync(args)
     if args.command == 'sync':
-        print('Release on Leonardo: ' + release.replace(STATE, '~/.leonardo-inference'))
+        print('Release on Curiosity: ' + release.replace(STATE, '~/.curiosity-inference'))
     elif args.command == 'init':
         words = ['init'] + (['--account', args.account] if args.account else []) + (['--force'] if args.force else [])
         for flag in ('partition', 'qos', 'cpu_partition'):

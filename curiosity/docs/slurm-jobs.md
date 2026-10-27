@@ -5,21 +5,21 @@ them by hand: what it needs, which resources it asks for, what it executes and w
 
 ## Before you start
 
-Work on a Leonardo login node in a folder that contains `leonardo/serve`, `leonardo/install` and
-`leonardo/diagnostics`: a clone of this repository, or a copy that `cli.py` uploaded
-(`~/.leonardo-inference/releases/<hash>/`, which contains `serve/`, `install/` and `diagnostics/` directly;
-there, drop the `leonardo/` prefix from the paths below). Then:
+Work on a Curiosity login node in a folder that contains `curiosity/serve`, `curiosity/install` and
+`curiosity/diagnostics`: a clone of this repository, or a copy that `cli.py` uploaded
+(`~/.curiosity-inference/releases/<hash>/`, which contains `serve/`, `install/` and `diagnostics/` directly;
+there, drop the `curiosity/` prefix from the paths below). Then:
 
 ```bash
 export SBATCH_ACCOUNT=<Slurm account>   # used by sbatch and by the prepare steps below
 export BASE=$WORK/<team folder>         # the team folder; the install and NCCL jobs read it
 ```
 
-Run `sbatch` from the repository root (or set `LEONARDO_RELEASE` to the `leonardo/` folder): the install
+Run `sbatch` from the repository root (or set `CURIOSITY_RELEASE` to the `curiosity/` folder): the install
 and diagnostic scripts find their code from the directory you submitted from. Logs go to
 `<job name>-<job id>.out` in that directory unless you pass `--output`.
 
-The team folder itself is not made by a job. `python3 leonardo/serve/team.py init --base "$BASE" --account
+The team folder itself is not made by a job. `python3 curiosity/serve/team.py init --base "$BASE" --account
 <Slurm account>` creates it (subfolders and `inference-site.json`), and `team.py share` grants access; see
 `team.py --help`.
 
@@ -29,7 +29,7 @@ The team folder itself is not made by a job. `python3 leonardo/serve/team.py ini
 | `install-checkpoint` | `install/checkpoint.sbatch <profile>` | `lrd_all_serial`, 4 CPUs, 30 GB, 4 h | `BASE`, the profile's runtime installed |
 | `install-link-client` | `install/link_client.sbatch` | `lrd_all_serial`, 1 CPU, 10 min | `BASE` |
 | `<profile>-common` | `serve/serve_model.sbatch` | GPU partition; nodes, GPUs, CPUs, memory and time from the profile | a run folder made by `inference.py prepare` |
-| `leonardo-router` | `serve/router.sbatch` | `lrd_all_serial`, 2 CPUs, 8 GB, 4 h, renews itself | a router folder made by `router.py prepare` |
+| `curiosity-router` | `serve/router.sbatch` | `lrd_all_serial`, 2 CPUs, 8 GB, 4 h, renews itself | a router folder made by `router.py prepare` |
 | `probe` | `diagnostics/probe.sbatch` | `boost_usr_prod`, debug QoS, 1 GPU, 20 min | nothing |
 | `reach` | `diagnostics/reach.sbatch` | `lrd_all_serial`, 1 CPU, 10 min | `TARGET` (optional `PROBE_PROXY`, `LINK_URL`) |
 | `nccl-check` | `diagnostics/nccl_check.sbatch` | `boost_usr_prod`, debug QoS, 2 nodes × 4 GPUs, 15 min | `BASE`, optional `RUNTIME` |
@@ -40,7 +40,7 @@ on login nodes.
 ## Install a runtime: `install/runtime.sbatch`
 
 ```bash
-sbatch leonardo/install/runtime.sbatch vllm-0.31.0      # or vllm-backport-sm80-0.13.1
+sbatch curiosity/install/runtime.sbatch vllm-0.31.0      # or vllm-backport-sm80-0.13.1
 ```
 
 Argument: a runtime id from `serve/catalog.json`. Steps:
@@ -59,8 +59,8 @@ Last line on success: `RUNTIME_READY <path>`.
 ## Download model weights: `install/checkpoint.sbatch`
 
 ```bash
-sbatch leonardo/install/checkpoint.sbatch qwen06b
-sbatch --dependency=afterok:<runtime job id> leonardo/install/checkpoint.sbatch qwen06b   # right after the runtime job
+sbatch curiosity/install/checkpoint.sbatch qwen06b
+sbatch --dependency=afterok:<runtime job id> curiosity/install/checkpoint.sbatch qwen06b   # right after the runtime job
 ```
 
 Argument: a profile from `serve/profiles/`. It reads `model_id`, `revision`, `checkpoint` and `runtime` from
@@ -74,7 +74,7 @@ success: `CHECKPOINT_READY <path> revision <sha> shards <n>`.
 ## Install the cluster link client: `install/link_client.sbatch`
 
 ```bash
-sbatch leonardo/install/link_client.sbatch
+sbatch curiosity/install/link_client.sbatch
 ```
 
 Downloads the chisel release named in `serve/catalog.json`, checks both SHA-256 sums (compressed and
@@ -87,7 +87,7 @@ Two steps, because the private run folder and its API key must exist before the 
 1. **Prepare, on the login node:**
 
    ```bash
-   RUN=$(python3 leonardo/serve/inference.py prepare qwen06b --base "$BASE")
+   RUN=$(python3 curiosity/serve/inference.py prepare qwen06b --base "$BASE")
    ```
 
    This checks the release manifest, the profile, the site file, the runtime and every checkpoint file, and
@@ -130,7 +130,7 @@ Log: `<run folder>/<profile>-common-<job id>.out`. Stop it with `scancel <job id
 Also two steps:
 
 ```bash
-python3 leonardo/serve/router.py prepare --base "$BASE" --hours 12   # prints a "cd … && sbatch …" line
+python3 curiosity/serve/router.py prepare --base "$BASE" --hours 12   # prints a "cd … && sbatch …" line
 ```
 
 Prepare creates `$BASE/users/<login>/router/` with a copy of `serve/` and `ROUTER.json` (settings and the
@@ -148,15 +148,15 @@ Inside the job, on port `41000 + id % 10000`:
    the site file it also starts the chisel client (`$BASE/tools/chisel-<version>`, verified and copied at
    prepare time).
 
-Log: `$BASE/users/<login>/router/leonardo-router-<job id>.out`. Stop all of them, the queued successor
-included, with `scancel --name=leonardo-router --user=$USER`.
+Log: `$BASE/users/<login>/router/curiosity-router-<job id>.out`. Stop all of them, the queued successor
+included, with `scancel --name=curiosity-router --user=$USER`.
 
 ## Checks: `diagnostics/`
 
 ```bash
-sbatch leonardo/diagnostics/probe.sbatch                                  # prints lrdnXXXX:PORT
-TARGET=lrdnXXXX:PORT PROBE_PROXY=http://… sbatch leonardo/diagnostics/reach.sbatch
-RUNTIME=vllm-0.31.0 sbatch leonardo/diagnostics/nccl_check.sbatch
+sbatch curiosity/diagnostics/probe.sbatch                                  # prints lrdnXXXX:PORT
+TARGET=lrdnXXXX:PORT PROBE_PROXY=http://… sbatch curiosity/diagnostics/reach.sbatch
+RUNTIME=vllm-0.31.0 sbatch curiosity/diagnostics/nccl_check.sbatch
 ```
 
 - **probe:** prints the GPU node's identity, network interfaces, routes, InfiniBand devices, GPU topology

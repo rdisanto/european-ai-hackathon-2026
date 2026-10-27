@@ -6,7 +6,7 @@ and swaps the caller's router token for that server's own key. Callers never see
 
 Optionally (site setting cluster_link.enabled, off by default) it also opens the cluster link: a
 chisel client that dials out to the chisel server in Kubernetes and offers this router there, so
-agentgateway reaches it without anyone logging in to Leonardo from the cluster.
+agentgateway reaches it without anyone logging in to Curiosity from the cluster.
 
     python3 router.py prepare --base $WORK/<team> [--hours 12]   # then run the sbatch line it prints
     python3 router.py serve   # run by router.sbatch inside the job
@@ -37,7 +37,7 @@ import time
 import inference
 from inference import ROOT, load, save
 
-JOB_NAME = 'leonardo-router'
+JOB_NAME = 'curiosity-router'
 ROUTER_DEFAULTS = {'qos': None, 'time': '04:00:00', 'cpus': 2, 'memory': '8000M'}
 LINK_DEFAULTS = {'enabled': False, 'server': None, 'fingerprint': None, 'proxy': None, 'remote_port': 9000}
 MAX_BODY = 16 * 1024 * 1024
@@ -292,7 +292,7 @@ def handler(routes, router_token):
     expected = router_token.encode()
 
     class Handler(BaseHTTPRequestHandler):
-        server_version = 'leonardo-router'
+        server_version = 'curiosity-router'
 
         def log_message(self, *args):
             pass
@@ -328,7 +328,7 @@ def handler(routes, router_token):
             if self.path in ('/v1/models', '/models'):
                 models = sorted(routes.current())
                 return self.reply(200, {'object': 'list', 'data': [
-                    {'id': m, 'object': 'model', 'owned_by': 'leonardo'} for m in models]})
+                    {'id': m, 'object': 'model', 'owned_by': 'curiosity'} for m in models]})
             self.error(404, 'Unknown path', 'not_found')
 
         def body(self):
@@ -362,7 +362,7 @@ def handler(routes, router_token):
                 return self.error(400, 'Body must be a JSON object with a "model" field', 'invalid_json')
             route = routes.current().get(model)
             if route is None:
-                return self.error(404, 'Model {} is not running on Leonardo right now'.format(model), 'model_not_found')
+                return self.error(404, 'Model {} is not running on Curiosity right now'.format(model), 'model_not_found')
             self.forward(route, model, data)
 
         def forward(self, route, model, data):
@@ -375,7 +375,7 @@ def handler(routes, router_token):
                 response = connection.getresponse()
             except (OSError, http.client.HTTPException) as error:
                 connection.close()
-                return self.error(502, 'Leonardo server for {} unreachable: {}'.format(model, type(error).__name__), 'upstream_unreachable')
+                return self.error(502, 'Curiosity server for {} unreachable: {}'.format(model, type(error).__name__), 'upstream_unreachable')
             try:
                 self.send_response(response.status)
                 for name, value in response.getheaders():

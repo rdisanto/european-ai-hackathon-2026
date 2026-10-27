@@ -3,7 +3,7 @@
 # (pinned by digest), add the runtime's pinned extra Python packages in a separate overlay, and
 # register both. The backport image needs the official TileLang wheel; stock vLLM needs nothing.
 # Submitted by `cli.py install <profile>` on the CPU queue, which has internet. By hand, from the
-# repository root:  BASE=$WORK/<team folder> sbatch -A <account> leonardo/install/runtime.sbatch <runtime id>
+# repository root:  BASE=$WORK/<team folder> sbatch -A <account> curiosity/install/runtime.sbatch <runtime id>
 #SBATCH --job-name=install-runtime
 #SBATCH --partition=lrd_all_serial
 #SBATCH --output=%x-%j.out
@@ -13,11 +13,11 @@
 set -euo pipefail
 RUNTIME="${1:?usage: runtime.sbatch <runtime id from serve/catalog.json>}"
 BASE="${BASE:?}"
-# The leonardo/ folder with serve/: set by cli.py, or found from where you ran sbatch.
-for RELEASE in "${LEONARDO_RELEASE:-}" "${SLURM_SUBMIT_DIR:-.}/leonardo" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}"; do
+# The curiosity/ folder with serve/: set by cli.py, or found from where you ran sbatch.
+for RELEASE in "${CURIOSITY_RELEASE:-}" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}"; do
     [[ -n "$RELEASE" && -f "$RELEASE/serve/catalog.json" ]] && break
 done
-[[ -f "$RELEASE/serve/catalog.json" ]] || { echo 'Run sbatch from the repository root, or set LEONARDO_RELEASE to its curiosity/ folder' >&2; exit 1; }
+[[ -f "$RELEASE/serve/catalog.json" ]] || { echo 'Run sbatch from the repository root, or set CURIOSITY_RELEASE to its curiosity/ folder' >&2; exit 1; }
 CATALOG="$RELEASE/serve/catalog.json"
 DEST="$BASE/runtimes/$RUNTIME"
 if [[ -e "$DEST/runtime.json" ]]; then echo "RUNTIME_READY $DEST (already installed)"; exit 0; fi

@@ -5,7 +5,7 @@
 # runtime job. A profile without a pinned revision gets the current one, printed as PIN_REVISION.
 # Sizes: qwen235b ~239 GB, glm53 ~328 GB, deepseek41 48 shards, qwen06b ~1.5 GB. By hand, from the
 # repository root, after the runtime is installed:
-#   BASE=$WORK/<team folder> sbatch -A <account> leonardo/install/checkpoint.sbatch <profile>
+#   BASE=$WORK/<team folder> sbatch -A <account> curiosity/install/checkpoint.sbatch <profile>
 #SBATCH --job-name=install-checkpoint
 #SBATCH --partition=lrd_all_serial
 #SBATCH --output=%x-%j.out
@@ -15,11 +15,11 @@
 set -euo pipefail
 NAME="${1:?usage: checkpoint.sbatch <profile name>}"
 BASE="${BASE:?}"
-# The leonardo/ folder with serve/: set by cli.py, or found from where you ran sbatch.
-for RELEASE in "${LEONARDO_RELEASE:-}" "${SLURM_SUBMIT_DIR:-.}/leonardo" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}"; do
+# The curiosity/ folder with serve/: set by cli.py, or found from where you ran sbatch.
+for RELEASE in "${CURIOSITY_RELEASE:-}" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}"; do
     [[ -n "$RELEASE" && -f "$RELEASE/serve/catalog.json" ]] && break
 done
-[[ -f "$RELEASE/serve/catalog.json" ]] || { echo 'Run sbatch from the repository root, or set LEONARDO_RELEASE to its curiosity/ folder' >&2; exit 1; }
+[[ -f "$RELEASE/serve/catalog.json" ]] || { echo 'Run sbatch from the repository root, or set CURIOSITY_RELEASE to its curiosity/ folder' >&2; exit 1; }
 read -r MODEL_ID PROFILE_REVISION CHECKPOINT RUNTIME < <(python3 -c 'import json, sys
 p = json.load(open(sys.argv[1]))
 print(p["model_id"], p.get("revision") or "-", p["checkpoint"], p["runtime"])' "$RELEASE/serve/profiles/$NAME.json")

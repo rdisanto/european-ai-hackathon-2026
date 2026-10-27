@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "about": "Exact serve/ bytes that passed real two-node GPU inference on Leonardo. tools/check_repository.py compares serve/ against these hashes and lists every file that has drifted, which then needs a fresh GPU run before the team relies on it.",
+  "about": "Exact serve/ bytes that passed real two-node GPU inference on Curiosity. tools/check_repository.py compares serve/ against these hashes and lists every file that has drifted, which then needs a fresh GPU run before the team relies on it.",
   "runtime": {
     "id": "vllm-backport-sm80-0.13.1",
     "image": "docker://lazymio/vllm-backport@sha256:0fc33cd7d2be777bf6faaee9b02adf781dc6d0bc44b9a09ce4865089f67e9cba",

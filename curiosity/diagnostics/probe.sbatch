@@ -1,7 +1,7 @@
 #!/bin/bash
 # Find out what a GPU node looks like from the inside, then serve a static page for ~15 minutes so
 # you can test whether other nodes reach a port on a GPU node, without vLLM in the way.
-# Submitted by `cli.py diagnose probe`. By hand:  sbatch -A <account> leonardo/diagnostics/probe.sbatch
+# Submitted by `cli.py diagnose probe`. By hand:  sbatch -A <account> curiosity/diagnostics/probe.sbatch
 #SBATCH --job-name=probe
 #SBATCH --partition=boost_usr_prod
 #SBATCH --output=%x-%j.out
@@ -53,7 +53,7 @@ section "static web server"
 PORT=$(( 31000 + SLURM_JOB_ID % 10000 ))
 WWW=$(mktemp -d)
 trap 'rm -rf "$WWW"' EXIT
-printf '<!doctype html><title>Leonardo probe</title><h1>Hello from %s</h1><p>job %s, port %s</p>\n' \
+printf '<!doctype html><title>Curiosity probe</title><h1>Hello from %s</h1><p>job %s, port %s</p>\n' \
   "$(hostname -s)" "$SLURM_JOB_ID" "$PORT" > "$WWW/index.html"
 cd "$WWW" || exit 1
 python3 -m http.server "$PORT" --bind 0.0.0.0 &

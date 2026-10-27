@@ -16,10 +16,10 @@
 #SBATCH --output=%x-%j.out
 set -euo pipefail
 umask 077
-for RELEASE in "${LEONARDO_RELEASE:-}" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}"; do
+for RELEASE in "${CURIOSITY_RELEASE:-}" "${SLURM_SUBMIT_DIR:-.}/curiosity" "${SLURM_SUBMIT_DIR:-.}"; do
     [[ -n "$RELEASE" && -f "$RELEASE/serve/stage.py" ]] && break
 done
-[[ -f "$RELEASE/serve/stage.py" ]] || { echo 'set LEONARDO_RELEASE to the curiosity/ folder (or run from the repository root)' >&2; exit 1; }
+[[ -f "$RELEASE/serve/stage.py" ]] || { echo 'set CURIOSITY_RELEASE to the curiosity/ folder (or run from the repository root)' >&2; exit 1; }
 export STAGE_GPUS=8
 cd "$RELEASE"
 exec python3 serve/stage.py serve --base "${BASE:?}"

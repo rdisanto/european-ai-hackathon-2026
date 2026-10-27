@@ -11,7 +11,7 @@
       "object": "list",
       "data": [
         {
-          "id": "qwen3-235b-a22b-fp8-leonardo",
+          "id": "qwen3-235b-a22b-fp8-curiosity",
           "object": "model",
           "created": 1792407338,
           "owned_by": "vllm",
@@ -46,7 +46,7 @@
         "id": "chatcmpl-8c4f293fcbcd2993",
         "object": "chat.completion",
         "created": 1792407338,
-        "model": "qwen3-235b-a22b-fp8-leonardo",
+        "model": "qwen3-235b-a22b-fp8-curiosity",
         "choices": [
           {
             "index": 0,
@@ -94,7 +94,7 @@
         "id": "chatcmpl-bcdf0d2da40cb212",
         "object": "chat.completion",
         "created": 1792407338,
-        "model": "qwen3-235b-a22b-fp8-leonardo",
+        "model": "qwen3-235b-a22b-fp8-curiosity",
         "choices": [
           {
             "index": 0,
@@ -152,7 +152,7 @@
         "id": "chatcmpl-90529ffa6c53b53c",
         "object": "chat.completion",
         "created": 1792407340,
-        "model": "qwen3-235b-a22b-fp8-leonardo",
+        "model": "qwen3-235b-a22b-fp8-curiosity",
         "choices": [
           {
             "index": 0,
@@ -213,7 +213,7 @@
             "id": "chatcmpl-89c577112b0e5c9e",
             "object": "chat.completion",
             "created": 1792407342,
-            "model": "qwen3-235b-a22b-fp8-leonardo",
+            "model": "qwen3-235b-a22b-fp8-curiosity",
             "choices": [
               {
                 "index": 0,
@@ -258,7 +258,7 @@
             "id": "chatcmpl-b5533142b737cdc0",
             "object": "chat.completion",
             "created": 1792407342,
-            "model": "qwen3-235b-a22b-fp8-leonardo",
+            "model": "qwen3-235b-a22b-fp8-curiosity",
             "choices": [
               {
                 "index": 0,
@@ -303,7 +303,7 @@
             "id": "chatcmpl-879efefc4164686e",
             "object": "chat.completion",
             "created": 1792407342,
-            "model": "qwen3-235b-a22b-fp8-leonardo",
+            "model": "qwen3-235b-a22b-fp8-curiosity",
             "choices": [
               {
                 "index": 0,
@@ -348,7 +348,7 @@
             "id": "chatcmpl-b0ebed4b0076a156",
             "object": "chat.completion",
             "created": 1792407342,
-            "model": "qwen3-235b-a22b-fp8-leonardo",
+            "model": "qwen3-235b-a22b-fp8-curiosity",
             "choices": [
               {
                 "index": 0,

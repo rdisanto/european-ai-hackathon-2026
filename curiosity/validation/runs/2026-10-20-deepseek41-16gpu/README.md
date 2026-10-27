@@ -1,6 +1,6 @@
 # Historical DeepSeek 16-GPU evidence
 
-Leonardo job `61481897` completed on 20 October 2026 with four nodes, sixteen
+Curiosity job `61481897` completed on 20 October 2026 with four nodes, sixteen
 A100 GPUs, TP8/PP2, expert parallelism and GPU-resident Engram. It used the
 earlier launcher, not this repository's unified CLI/router.
 

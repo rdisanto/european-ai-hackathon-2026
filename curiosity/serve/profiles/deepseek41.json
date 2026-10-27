@@ -6,7 +6,7 @@
   "checkpoint": "deepseek41",
   "expected_shards": 48,
   "runtime": "vllm-backport-sm80-0.13.1",
-  "served_model": "deepseek-v4.1-flash-1017-leonardo",
+  "served_model": "deepseek-v4.1-flash-1017-curiosity",
   "resources": {
     "nodes": 2,
     "gpus_per_node": 4,
@@ -65,5 +65,5 @@
     }
   },
   "startup_timeout_seconds": 4800,
-  "validation": "Common launcher validated on Leonardo with one operator account, job 61300901: seven English API checks plus two SSH client suites. Other accounts and sustained application load remain unvalidated. This snapshot changes only shared port allocation; the port correction was GPU-validated with Qwen in job 61389137. No GLM/DeepSeek GPU rerun is claimed."
+  "validation": "Common launcher validated on Curiosity with one operator account, job 61300901: seven English API checks plus two SSH client suites. Other accounts and sustained application load remain unvalidated. This snapshot changes only shared port allocation; the port correction was GPU-validated with Qwen in job 61389137. No GLM/DeepSeek GPU rerun is claimed."
 }
