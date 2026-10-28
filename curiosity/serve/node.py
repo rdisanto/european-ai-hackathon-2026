@@ -240,6 +240,14 @@ def verify_image(cfg):
                 kind, ', '.join(names), ', '.join(registry.get(kind) or []) or '(vide)'))
         print('{}-parser: {}'.format(kind, chosen), flush=True)
         extra += [flag, chosen]
+        # Non-negotiable pair from diagnostics/glm53_b300_first_run.sh (serve()): a resolved
+        # tool parser must bring --enable-auto-tool-choice along, or any client request with
+        # tool_choice "auto" is rejected with HTTP 400 ("auto tool choice requires
+        # --enable-auto-tool-choice and --tool-call-parser to be set") even though the parser
+        # itself is registered. glm53.json hit exactly that at its first READY endpoint.
+        if kind == 'tool' and '--enable-auto-tool-choice' not in [
+                value.split('=', 1)[0] for value in cfg['profile']['engine_args']]:
+            extra += ['--enable-auto-tool-choice']
     flags = {value.split('=', 1)[0] for value in cfg['profile']['engine_args'] if value.startswith('--')}
     flags |= {value for value in extra if value.startswith('--')}
     missing = sorted(flag for flag in flags if flag not in help_text)

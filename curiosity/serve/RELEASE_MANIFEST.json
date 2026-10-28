@@ -7,7 +7,7 @@
     "hooks/warm_engram.py": "835074a2e39444c6970923bc882de291e4818af0947e05451bd6abcdfbdf9e89",
     "inference.py": "ece2033808c3b0e7ae49378a9d9e98acbeeb813e18175773ded333476afe0161",
     "lifecycle.py": "eb6c49af84a3a31be10b4a2255a966d8fbf76862bd7cfb70d11bcac6b21c8bc7",
-    "node.py": "8c60661a543ed44d8986dd543295242d9d133e15a0dc5fda8957b4f8a3b3341d",
+    "node.py": "28e45db6551c5a419eda15a6f763dcc5d27fc3fa3084dd0d93107aeb6c8c3106",
     "prepare_run.sh": "033bc136770dd19e1508894ab18b9c22c10a48a20071cb2a8588c839324b4ad5",
     "profiles/deepseek41-16gpu.json": "457a55d7e3718b8b51a96a8b69c78030f63c34aa9dd4f0c5f0709ed47efe3587",
     "profiles/deepseek41-8gpu.json": "e6e56f9ff07fee4193ddd16b24593e56ddbfd191cd2f22f0ff2e9ad9184cf667",

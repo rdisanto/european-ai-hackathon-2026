@@ -247,6 +247,33 @@ class Framework(unittest.TestCase):
         key = (run / '.runtime/api_key').read_text().strip()
         self.assertIn('VLLM_API_KEY=' + key, joined)
 
+    def test_docker_launcher_pairs_auto_tool_choice_with_the_tool_parser(self):
+        # glm53.json resolves its parser via parser_candidates (stock vLLM 0.32 renames them)
+        # and does NOT list --enable-auto-tool-choice in engine_args. The launcher must add it
+        # beside --tool-call-parser (diagnostics/glm53_b300_first_run.sh, serve(): non-negotiable
+        # pair), or any client request with tool_choice "auto" is rejected with HTTP 400.
+        for model, registry in (('glm53', {'tool': ['glm47', 'glm45'], 'reasoning': ['glm47', 'glm45']}),
+                                ('dsv4flashablit', {'tool': ['deepseek_v4'], 'reasoning': ['deepseek_v4']})):
+            run = self.prepare(model)
+            cfg = inference.load(run / 'RUN_CONFIG.json')
+            cache = Path(cfg['cache_path'])
+            cache.mkdir(parents=True, exist_ok=True)
+            flags = {value.split('=', 1)[0] for value in cfg['profile']['engine_args'] if value.startswith('--')}
+            flags |= {'--tool-call-parser', '--enable-auto-tool-choice', '--reasoning-parser'}
+            (cache / 'vllm-serve-help.txt').write_text(''.join(flag + ' ...\n' for flag in sorted(flags)))
+            (cache / 'vllm-parsers.json').write_text(json.dumps(registry))
+            self.command('docker', '#!/bin/bash\nexit 0\n')
+            saved_path = os.environ['PATH']
+            os.environ['PATH'] = str(self.bin) + ':' + saved_path  # docker stub for pull/info
+            try:
+                extra = node.verify_image(cfg)
+            finally:
+                os.environ['PATH'] = saved_path
+            self.assertIn('--tool-call-parser', extra)
+            self.assertIn('--enable-auto-tool-choice', extra)
+            # Exactly once, whether the profile listed it (dsv4flashablit) or not (glm53).
+            self.assertEqual(extra.count('--enable-auto-tool-choice'), 1)
+
     def test_docker_install_downloads_checkpoints_on_the_gpu_partition(self):
         self.command('sbatch', '#!/bin/bash\necho "$*" >> "$HOME/sbatch-calls"\nprintf "702\\n"\n')
         self.command('squeue', '#!/bin/bash\nexit 0\n')
