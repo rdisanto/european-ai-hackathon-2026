@@ -55,6 +55,40 @@ def ensure_dirs(base):
     return d
 
 
+def clear_commands(base):
+    """Drop this user's pending load/unload commands (stage down / --restart).
+
+    Without this, commands left by a dead supervisor replay against the next
+    stage and can re-wedge it. The done/ history is kept for post-mortem."""
+    d = stage_dir(base) / 'cmd'
+    if not d.is_dir():
+        return 0
+    count = 0
+    for path in sorted(d.glob('*.cmd')):
+        path.unlink()
+        count += 1
+    return count
+
+
+def clear_models(base):
+    """Forget loaded models and unlink their router endpoints (stage down / node loss).
+
+    The containers died with the node, so models.json would only report phantoms and
+    hold their GPU slices; and the next stage's router would keep routing to dead ports
+    (router.py keeps stage endpoints until the supervisor withdraws them). Mirrors
+    unload_model, without docker calls."""
+    base = Path(base)
+    records = load_models(base)
+    for rec in records.values():
+        end = Path(rec['run']) / '.runtime/endpoint.json'
+        if end.exists():
+            end.unlink()
+    p = stage_dir(base) / 'models.json'
+    if p.exists():
+        p.unlink()
+    return len(records)
+
+
 def load_models(base):
     p = stage_dir(base) / 'models.json'
     return load(p) if p.exists() else {}
@@ -62,6 +96,15 @@ def load_models(base):
 
 def save_models(base, records):
     save(stage_dir(base) / 'models.json', records)
+
+
+def write_status(base, port, records, loading=None):
+    """status.json: supervisor liveness + loaded models + the load currently in progress."""
+    save(stage_dir(base) / 'status.json',
+         {'updated': time.time(), 'supervisor': 'running', 'router_port': port,
+          'node': os.uname().nodename, 'models': {k: v['served_model'] for k, v in records.items()},
+          'loading': loading})
+
 
 
 def free_gpu_slice(records):
@@ -93,7 +136,7 @@ def request_healthy(port, timeout=5):
         return False
 
 
-def load_model(base, profile_name, records):
+def load_model(base, profile_name, records, router_port=None):
     """prepare a run, verify the image, and start the container pinned to a free 4-GPU slice."""
     base = Path(base)
     ensure_dirs(base)
@@ -106,6 +149,13 @@ def load_model(base, profile_name, records):
     if slice_ is None:
         raise RuntimeError('no free 4-GPU slice (stage already hosts {} model(s))'.format(len(records)))
     api_port = free_api_port(records)
+    started_at = time.time()
+    loading = {'profile': profile_name, 'slice': slice_, 'api_port': api_port, 'started': started_at}
+    if router_port is not None:
+        write_status(base, router_port, records,
+                     dict(loading, phase='preflight',
+                          detail='image pull + verification des flags (a froid)'))
+    print('STAGE_LOAD_START {} slice {} port {} :: {}'.format(p['id'], slice_, api_port, name), flush=True)
     # node._ROOT must be the run directory: that is where the fresh API key lives.
     saved_root, node.ROOT = node.ROOT, run
     try:
@@ -123,15 +173,25 @@ def load_model(base, profile_name, records):
                 os.environ['CUDA_VISIBLE_DEVICES'] = saved
     finally:
         node.ROOT = saved_root
+    if router_port is not None:
+        write_status(base, router_port, records,
+                     dict(loading, phase='engine', detail='vllm serve demarre (cold load des poids)'))
     print('STAGE_LOAD {} slice {} port {} :: {}'.format(
         p['id'], slice_, api_port, ' '.join(shlex.quote(a) for a in argv)), flush=True)
     child = subprocess.Popen(argv)
     start = time.monotonic()
+    last_beat = 0.0
     while time.monotonic() - start < p['startup_timeout_seconds']:
         if child.poll() is not None:
             raise RuntimeError('{} container exited before readiness (rc {})'.format(p['id'], child.returncode))
         if request_healthy(api_port):
             break
+        elapsed = time.monotonic() - start
+        if router_port is not None and elapsed - last_beat >= 30:
+            last_beat = elapsed
+            write_status(base, router_port, records,
+                         dict(loading, phase='engine',
+                              detail='attente /health - cold load ({:.0f}s)'.format(elapsed)))
         time.sleep(5)
     else:
         subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -209,9 +269,7 @@ def serve(args):
     log = (d / 'supervisor.out').open('a')
     records = load_models(base)
     port, router_child = start_router(base, site, log)
-    save(stage_dir(base) / 'status.json',
-         {'updated': time.time(), 'supervisor': 'running', 'router_port': port,
-          'node': os.uname().nodename, 'models': {k: v['served_model'] for k, v in records.items()}})
+    write_status(base, port, records)
     print('STAGE_SERVE ready; router 0.0.0.0:{} ; commands in {}'.format(port, d / 'cmd'), flush=True)
     cmd_dir, done_dir = d / 'cmd', d / 'done'
     while True:
@@ -223,7 +281,7 @@ def serve(args):
                     act, profile = action.get('action'), action.get('profile')
                     if act == 'load':
                         try:
-                            records = load_model(base, profile, records)
+                            records = load_model(base, profile, records, port)
                             result = {'ok': True, 'action': 'load', 'profile': profile}
                         except Exception as error:  # noqa: BLE001 - report and stay up
                             result = {'ok': False, 'action': 'load', 'profile': profile, 'error': str(error)}
@@ -235,9 +293,7 @@ def serve(args):
                         result = {'ok': False, 'action': act or '?', 'error': 'unknown action'}
                     target.write_text(json.dumps(result) + '\n')
                     cmd_path.unlink()
-                    save(stage_dir(base) / 'status.json',
-                         {'updated': time.time(), 'supervisor': 'running', 'router_port': port,
-                          'node': os.uname().nodename, 'models': {k: v['served_model'] for k, v in records.items()}})
+                    write_status(base, port, records)
                 except (ValueError, OSError) as error:
                     target.write_text(json.dumps({'ok': False, 'error': str(error)}) + '\n')
                     cmd_path.unlink()

@@ -97,7 +97,7 @@ class Stage(Framework):
         self.assertEqual(replaced.returncode, 0, replaced.stderr)
         calls = (self.home / 'sbatch-calls').read_text().splitlines()
         self.assertEqual(len(calls), 1)
-        self.assertIn('--gres=gpu:8', calls[0])
+        self.assertIn('--gres=gpu:6', calls[0])
         sc = (self.home / 'scancel-args').read_text()
         self.assertIn('--name=stage', sc)   # --restart cancels by job name (as router down does)
         self.assertIn('--user=', sc)

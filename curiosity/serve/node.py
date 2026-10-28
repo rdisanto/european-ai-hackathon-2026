@@ -88,19 +88,21 @@ def ensure_docker():
     """curiosity has no docker in the PATH: the rootless-docker module provides it."""
     if _docker_works():
         return
-    for init in ('/usr/share/lmd/lmod/init/bash', '/etc/profile.d/modules.sh', '/usr/share/Modules/init/bash'):
-        if not Path(init).is_file():
-            continue
-        script = ('. {0} >/dev/null 2>&1; module load rootless-docker 2>/dev/null || '
-                  'module load rootless-docker/1.75 2>/dev/null || true; printf %s "$PATH"').format(shlex.quote(init))
+    inits = ('/usr/share/lmod/lmod/init/bash', '/etc/profile.d/modules.sh', '/usr/share/Modules/init/bash')
+    found = [init for init in inits if Path(init).is_file()]
+    for init in found:
+        script = ('. {0} >/dev/null 2>&1; module load rootless-docker/1.75 2>/dev/null || '
+                  'module load rootless-docker 2>/dev/null || true; printf %s "$PATH"').format(shlex.quote(init))
         result = subprocess.run(['bash', '-c', script], stdout=subprocess.PIPE)
         path = result.stdout.decode().strip()
         if path:
             os.environ['PATH'] = path
         if _docker_works():
             return
-    raise RuntimeError('docker introuvable : module load rootless-docker, puis relancer '
-                       '(cf. glm53_b300_first_run.sh preflight)')
+    which = subprocess.run(['bash', '-c', 'command -v docker || true'], stdout=subprocess.PIPE).stdout.decode().strip()
+    raise RuntimeError('docker introuvable apres module load rootless-docker/1.75 : inits trouves {}, '
+                       'command -v docker -> {} (cf. glm53_b300_first_run.sh preflight)'.format(
+                           ', '.join(found) or 'aucun', which or 'absent'))
 
 
 def docker_user_args():

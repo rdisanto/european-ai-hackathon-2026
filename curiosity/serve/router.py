@@ -199,6 +199,7 @@ def next_job():
 
 
 def down():
+    inference.ensure_slurm()
     subprocess.call(['scancel', '--name=' + JOB_NAME, '--user=' + getpass.getuser()])
     print('Cancelled all {} jobs of {}.'.format(JOB_NAME, getpass.getuser()))
 
@@ -241,6 +242,7 @@ def own_runs(base):
 def active_jobs():
     """Own Slurm jobs by id, or None if squeue is unavailable."""
     try:
+        inference.ensure_slurm()
         output = subprocess.check_output(['squeue', '-h', '-u', getpass.getuser(), '-o', '%i|%j|%T|%M|%l|%N'],
                                          stderr=subprocess.DEVNULL, timeout=30).decode()
     except (OSError, subprocess.SubprocessError):

@@ -378,6 +378,7 @@ def down(args):
                 targets.append(run['job'])
     if not targets:
         raise ValueError('No running server of yours matches {}; see status'.format(args.target))
+    inference.ensure_slurm()
     subprocess.check_call(['scancel'] + targets)
     print('Cancelled job(s) ' + ' '.join(targets))
 
@@ -415,7 +416,7 @@ def diagnose(args):
 
 
 def stage_reserve(base, site, time_override, qos, reservation, restart=False):
-    """Reattach to the running stage, or submit ONE long 1-node/8-GPU job (never a second)."""
+    """Reattach to the running stage, or submit ONE long 1-node/6-GPU job (never a second)."""
     existing = [j for j in (router.active_jobs() or {}).values() if j['name'] == 'stage']
     if existing and not restart:
         print('A stage is already reserved as job {} ({}); reattaching to it. '
@@ -423,12 +424,20 @@ def stage_reserve(base, site, time_override, qos, reservation, restart=False):
         return
     if restart and existing:
         subprocess.check_call(['scancel', '--name=stage', '--user=' + getpass.getuser()])
-        print('Replacing existing stage job(s): {}.'.format(', '.join(e['job_id'] for e in existing)))
+        cleared = stage.clear_commands(base)
+        models_dropped = stage.clear_models(base)
+        bits = []
+        if cleared:
+            bits.append('Cleared {} pending command(s).'.format(cleared))
+        if models_dropped:
+            bits.append('Forgot {} model record(s) (containers died with the node).'.format(models_dropped))
+        print('Replacing existing stage job(s): {}.{}'.format(
+            ', '.join(e['job_id'] for e in existing), ' ' + ' '.join(bits) if bits else ''))
     account = os.environ.get('SBATCH_ACCOUNT') or site.get('account')
     logs = stage.stage_dir(base) / 'reserve-%x-%j.out'
     logs.parent.mkdir(parents=True, exist_ok=True)
     command = ['sbatch', '--parsable', '--job-name=stage', '--partition=' + inference.identifier(site['partition']),
-               '--nodes=1', '--ntasks-per-node=1', '--gres=gpu:8', '--cpus-per-task=32', '--mem=480GB',
+               '--nodes=1', '--ntasks-per-node=1', '--gres=gpu:6', '--cpus-per-task=32', '--mem=480GB',
                '--time=' + inference.time_limit(time_override or '11:00:00'),
                '--signal=B:TERM@60', '--output=' + str(logs),
                '--export=' + ','.join(['ALL', 'BASE=' + str(base), 'CURIOSITY_RELEASE=' + str(RELEASE)])]
@@ -440,7 +449,7 @@ def stage_reserve(base, site, time_override, qos, reservation, restart=False):
         command.append('--reservation=' + inference.identifier(reservation))
     job = inference.sbatch(command + [str(RELEASE / 'serve/stage_model.sbatch')],
                            stage.stage_dir(base) / '.submitting-stage')
-    print('Reserved stage as job {}: 1 node / 8 B300 for {}.'.format(job, time_override or '11:00:00'))
+    print('Reserved stage as job {}: 1 node / 6 B300 for {}.'.format(job, time_override or '11:00:00'))
     print('Inside it: stage load <profile>, stage unload <profile>, stage status.')
 
 
@@ -458,14 +467,32 @@ def stage_status(base, as_json=False):
     models = stage.load_models(base) if d.exists() else {}
     status = inference.load(d / 'status.json') if (d / 'status.json').exists() else None
     if as_json:
+        cmd_dir = d / 'cmd' if d.exists() and (d / 'cmd').is_dir() else None
+        pending = sorted(cmd_dir.glob('*.cmd')) if cmd_dir else []
         print(json.dumps({'supervisor': (status or {}).get('supervisor'),
                           'router': {'host': (status or {}).get('node'),
-                                     'port': (status or {}).get('router_port')} if status else None,
-                          'models': {k: v['served_model'] for k, v in models.items()}}))
+                                     'port': status.get('router_port')} if status and status.get('router_port') else None,
+                          'models': {k: v['served_model'] for k, v in models.items()},
+                          'loading': (status or {}).get('loading'),
+                          'pending': [p.name for p in pending]}))
         return
     if status:
-        print('supervisor: {} on {} ; router 0.0.0.0:{}'.format(
-            status.get('supervisor'), status.get('node'), status.get('router_port')))
+        if status.get('supervisor') == 'down':
+            stopped = time.strftime('%H:%M', time.localtime(status.get('updated', time.time())))
+            print('supervisor: down since {} (stage down - reserve again to restart)'.format(stopped))
+        else:
+            print('supervisor: {} on {} ; router 0.0.0.0:{}'.format(
+                status.get('supervisor'), status.get('node'), status.get('router_port')))
+            loading = status.get('loading')
+            if loading:
+                age = ''
+                started = loading.get('started')
+                if started:
+                    age = ' ({} min)'.format(int((time.time() - started) // 60))
+                detail = ' - ' + loading['detail'] if loading.get('detail') else ''
+                print('  loading {:14} slice={:>7} api_port={} phase={}{}{}'.format(
+                    loading.get('profile', '?'), loading.get('slice'), loading.get('api_port'),
+                    loading.get('phase'), age, detail))
     else:
         print('supervisor: not reported yet (reserve the stage, then wait for its job log)')
     if models:
@@ -474,6 +501,11 @@ def stage_status(base, as_json=False):
                 profile, rec['slice'], rec['api_port'], rec['served_model']))
     else:
         print('  no model loaded (stage load <profile>)')
+    if d.exists() and (d / 'cmd').is_dir():
+        pending = sorted((d / 'cmd').glob('*.cmd'))
+        if pending:
+            oldest = time.strftime('%H:%M', time.localtime(pending[0].stat().st_mtime))
+            print('  pending commands: {} (oldest {}) - supervisor busy or stuck'.format(len(pending), oldest))
     jobs = router.active_jobs() or {}
     for j in jobs.values():
         if j['name'] == 'stage':
@@ -491,8 +523,20 @@ def stage_command(args):
     elif action == 'status':
         stage_status(base, bool(getattr(args, 'json', False)))
     elif action == 'down':
+        inference.ensure_slurm()
         subprocess.check_call(['scancel', '--name=stage', '--user=' + getpass.getuser()])
-        print('Cancelled the stage reservation of {}.'.format(getpass.getuser()))
+        cleared = stage.clear_commands(base)
+        models_dropped = stage.clear_models(base)
+        inference.save(stage.stage_dir(base) / 'status.json',
+                       {'updated': time.time(), 'supervisor': 'down',
+                        'router_port': None, 'node': None, 'models': {}, 'loading': None})
+        bits = []
+        if cleared:
+            bits.append('Cleared {} pending command(s).'.format(cleared))
+        if models_dropped:
+            bits.append('Forgot {} model record(s) (containers died with the node).'.format(models_dropped))
+        print('Cancelled the stage reservation of {}.{}'.format(
+            getpass.getuser(), ' ' + ' '.join(bits) if bits else ''))
 
 
 def main():
@@ -541,7 +585,7 @@ def main():
     p.add_argument('--proxy', help='probe/reach: also try this HTTP proxy')
     p.add_argument('--link-url', help='reach: also check this cluster link URL')
     p.add_argument('--runtime', default='vllm-0.31.0', help='nccl: runtime image to use')
-    p = command('stage', 'one long 8-GPU B300 reservation: load/unload models + the router inside')
+    p = command('stage', 'one long 6-GPU B300 reservation: load/unload models + the router inside')
     p.add_argument('stage_action', choices=['reserve', 'load', 'unload', 'status', 'down'])
     p.add_argument('profile', nargs='?', help='load/unload: the profile to load or stop')
     p.add_argument('--json', action='store_true', help='status: JSON output (used by cli.py stage forward)')

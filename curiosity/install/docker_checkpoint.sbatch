@@ -49,12 +49,16 @@ docker pull "$IMAGE"
 
 AUTH_ENV=()
 if [[ -n "${HF_TOKEN:-}" ]]; then AUTH_ENV=(-e HF_TOKEN); fi
+# -i est indispensable : sans lui docker run ne connecte pas le stdin du heredoc
+# (OpenStdin=false), python3 -u - compile un programme vide, exit 0 sans rien
+# télécharger, et le script se terminait sur un du -sh de 4.0K.
 docker run --rm $USER_ARGS \
     -v "$BASE/checkpoints/$CHECKPOINT:/models" \
     -v "$BASE/staging/hf-cache:/cache" \
     -e HOME=/tmp -e HF_HOME=/cache -e HF_HUB_DOWNLOAD_TIMEOUT=120 -e HF_HUB_DISABLE_TELEMETRY=1 \
-    -e MODEL_ID -e MODEL_DIR=/models -e MODEL_REVISION -e IMAGE \
+    -e MODEL_ID="$MODEL_ID" -e MODEL_DIR=/models -e MODEL_REVISION="$MODEL_REVISION" -e IMAGE="$IMAGE" \
     ${AUTH_ENV[@]+"${AUTH_ENV[@]}"} \
+    -i \
     --entrypoint python3 "$IMAGE" -u - <<'PY'
 import json, os, shutil
 from pathlib import Path

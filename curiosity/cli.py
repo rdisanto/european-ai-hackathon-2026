@@ -73,8 +73,8 @@ COMMANDS = {
     'diagnose': ('submit a check job: probe (GPU node), reach (CPU queue -> GPU node, internet), nccl',
                  'serve/team.py diagnose -> diagnostics/probe.sbatch, diagnostics/reach.sbatch or\n'
                  'diagnostics/nccl_check.sbatch (with nccl_task.sh and nccl_check.py). Logs: users/<login>/logs/.'),
-    'stage': ('one long 8-GPU B300 reservation: load/unload models + the router inside',
-              'serve/team.py stage reserve -> serve/stage_model.sbatch (1 node / 8 B300, long wall-clock), which runs\\n'
+    'stage': ('one long 6-GPU B300 reservation: load/unload models + the router inside',
+              'serve/team.py stage reserve -> serve/stage_model.sbatch (1 node / 6 B300, long wall-clock), which runs\\n'
               'serve/stage.py serve: owns the rootless docker (diagnostic recipe) and loads/unloads the requested\\n'
               'models on their own 4-GPU slices while running the reused router (router.py serve). load/unload\\n'
               'drop command files that the supervisor inside the reservation polls and acts on; forward reaches the\\n'
@@ -217,7 +217,7 @@ def parser():
     p.add_argument('--runtime', help='nccl: installed runtime to test (default vllm-0.31.0)')
     p = command('stage')
     stage_sub = p.add_subparsers(dest='stage_action', required=True)
-    r = stage_sub.add_parser('reserve', help='submit the single long 1-node/8-GPU job')
+    r = stage_sub.add_parser('reserve', help='submit the single long 1-node/6-GPU job')
     r.add_argument('--time', help='wall clock, e.g. 10:00:00 (default 11:00:00)')
     r.add_argument('--qos')
     r.add_argument('--reservation')

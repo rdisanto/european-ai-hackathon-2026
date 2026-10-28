@@ -164,6 +164,9 @@ def config():
 def preflight(cfg):
     verify_release()
     profile_check(cfg['profile'])
+    ensure_slurm()
+    if not shutil.which('sbatch'):
+        raise ValueError('Slurm must be available on this host')
     model = Path(cfg['model_path'])
     if (model / 'model.safetensors.index.json').exists():
         shards = sorted(set(load(model / 'model.safetensors.index.json')['weight_map'].values()))
@@ -197,8 +200,6 @@ def preflight(cfg):
             raise ValueError('Runtime registration mismatch')
         if not shutil.which(cfg['container_command']):
             raise ValueError('Container runner must be available on this host')
-    if not shutil.which('sbatch'):
-        raise ValueError('Slurm must be available on this host')
     cache = Path(cfg['cache_path'])
     private_dir(cache.parent.parent)  # $BASE/users/<login>: holds keys, so never shared
     private_dir(cache.parent)
@@ -349,8 +350,72 @@ def submit_command(cfg, reservation=None, qos=None, time=None):
     return command + [str(ROOT / 'serve_model.sbatch')]
 
 
+_SLURM_READY = False
+
+_SLURM_CONF_CANDIDATES = (
+    '/cm/shared/apps/slurm/etc/slurm/slurm.conf',   # Bright shared-apps layout (Curiosity)
+    '/cm/local/apps/slurm/current/etc/slurm.conf',  # Bright local-apps layout
+    '/etc/slurm/slurm.conf',
+    '/etc/slurm-llnl/slurm.conf',
+)
+
+
+def _slurm_path_configured():
+    """Export SLURM_CONF from a known slurm.conf; True when sbatch can find the controller."""
+    configured = os.environ.get('SLURM_CONF') and Path(os.environ['SLURM_CONF']).is_file()
+    if not configured:
+        for candidate in _SLURM_CONF_CANDIDATES:
+            if Path(candidate).is_file():
+                os.environ['SLURM_CONF'] = candidate
+                configured = True
+                break
+    return configured
+
+
+def ensure_slurm():
+    """Make sbatch/squeue/scancel reachable by loading the Bright slurm module once.
+
+    curiosity's login node only exposes /cm/local/apps/slurm/current/bin after `module load
+    slurm`: interactive shells get it from ~/.bashrc, but cli.py's non-interactive `bash -lc`
+    does not. Loading it here (cached) makes team.py/router.py/stage.py work over SSH. The
+    helper never raises on failure: without a module stack (or with test stubs) the PATH is
+    left alone and callers see the same error they would have seen anyway.
+
+    An sbatch already on PATH is not enough: with no SLURM_CONF the client falls back to DNS
+    SRV discovery and dies with "resolve_ctls_from_dns_srv ... Unknown host". So the module
+    is loaded even when sbatch is visible, and SLURM_CONF is exported from a known slurm.conf
+    as a belt-and-braces fallback.
+    """
+    global _SLURM_READY
+    if _SLURM_READY:
+        return
+    if not (_slurm_path_configured() and shutil.which('sbatch')):
+        for init in ('/usr/share/lmod/lmod/init/bash', '/etc/profile.d/modules.sh', '/usr/share/Modules/init/bash'):
+            if not Path(init).is_file():
+                continue
+            # The slurm module sets more than PATH (SLURM_CONF, SLURMDBD_CONF, LD_LIBRARY_PATH):
+            # capture them all so the client finds the controller instead of falling back to DNS SRV.
+            script = ('. {0} >/dev/null 2>&1; module load slurm 2>/dev/null || true; '
+                      'env | grep -E "^(PATH|SLURM|LD_LIBRARY_PATH)="').format(shlex.quote(init))
+            try:
+                result = subprocess.run(['bash', '-lc', script], stdout=subprocess.PIPE,
+                                        stderr=subprocess.DEVNULL, timeout=30)
+            except (OSError, subprocess.SubprocessError):
+                continue
+            for line in result.stdout.decode(errors='replace').splitlines():
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key] = value
+            if _slurm_path_configured() and shutil.which('sbatch'):
+                break
+    _slurm_path_configured()
+    if shutil.which('sbatch'):
+        _SLURM_READY = True
+
+
 def sbatch(command, marker, cwd=None):
     """Run sbatch once; `marker` guards against a second submission when the outcome is unknown."""
+    ensure_slurm()
     fd = os.open(str(marker), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.close(fd)
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
