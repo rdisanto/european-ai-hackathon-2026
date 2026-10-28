@@ -114,6 +114,38 @@ class Stage(Framework):
         self.assertEqual(json.loads(cmds[0].read_text()), {'action': 'load', 'profile': 'glm53'})
         self.assertIn(b'Queued load glm53', out)
 
+    def test_stage_is_team_shared_status_reserve_and_ownership(self):
+        # The stage lives in $BASE/stage (never users/<login>/stage): a teammate must see
+        # a stage someone else reserved, reattach instead of submitting a second one, and
+        # only the owner can take it down (Slurm grants no cross-account scancel).
+        base = self.base
+        import subprocess as sp
+        d = stage.ensure_dirs(base)
+        stage.write_status(base, stage.STAGE_PORT, {})
+        status = inference.load(d / 'status.json')
+        status['owner'] = 'alice'  # another team member reserved this stage
+        status['node'] = 'r3c1'
+        inference.save(d / 'status.json', status)
+        self.command('squeue', '#!/bin/bash\nprintf "600|stage|RUNNING|0:10|11:00:00|r3c1\n"\n')
+        self.command('sbatch', '#!/bin/bash\necho "$*" >> "$HOME/sbatch-calls"\nprintf "700\n"\n')
+        self.command('scancel', '#!/bin/bash\nexit 0\n')
+        # Any member sees the stage and its owner ...
+        data = json.loads(sp.check_output([sys.executable, str(RELEASE / 'team.py'), 'stage', 'status',
+                                           '--json', '--base', str(base)], env=self.env, stderr=sp.PIPE))
+        self.assertEqual(data['supervisor'], 'running')
+        self.assertEqual(data['owner'], 'alice')
+        self.assertEqual(data['router'], {'host': 'r3c1', 'port': stage.STAGE_PORT})
+        # ... and reserve reattaches to it instead of submitting a second stage ...
+        text = sp.check_output([sys.executable, str(RELEASE / 'team.py'), 'stage', 'reserve',
+                                '--base', str(base)], env=self.env, stderr=sp.PIPE)
+        self.assertIn(b'already reserved', text)
+        self.assertFalse((self.home / 'sbatch-calls').exists())
+        # ... while down refuses a non-owner.
+        down = sp.run([sys.executable, str(RELEASE / 'team.py'), 'stage', 'down',
+                       '--base', str(base)], env=self.env, capture_output=True)
+        self.assertNotEqual(down.returncode, 0)
+        self.assertIn(b'alice', down.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

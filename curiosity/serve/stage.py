@@ -19,9 +19,11 @@ reused router (router.py serve) discovers stage models through their .runtime/en
 branded "stage": true, never through the shared registry.
 
 Control is file-based so no extra daemon or port is needed: commands are dropped as JSON files
-in $BASE/users/<login>/stage/cmd/ and the supervisor moves them to done/ after acting.
+in $BASE/stage/cmd/ (team-shared: any member can load/unload and read the status; the supervisor
+runs under the reserving member's account) and the supervisor moves them to done/ after acting.
 """
 import argparse
+import getpass
 import json
 import os
 from pathlib import Path
@@ -44,7 +46,15 @@ POLL = 3               # supervisor command/rescan interval, seconds
 
 
 def stage_dir(base):
-    return inference.user_dir(Path(base)) / 'stage'
+    """TEAM-shared stage directory: $BASE/stage (never users/<login>/stage).
+
+    The stage is one reservation for the whole team, so its control files (status.json,
+    models.json, cmd/, done/, supervisor.out) live at the team level where every member
+    can read them and drop load/unload commands. The supervisor itself runs under the
+    reserving member's account and keeps everything private (runs, caches, API keys)
+    under that member's users/<login>/ tree -- only the shared controller state moves
+    here. Permissions are forced rwx for the whole team (see ensure_dirs)."""
+    return Path(base) / 'stage'
 
 
 def ensure_dirs(base):
@@ -52,6 +62,10 @@ def ensure_dirs(base):
     d.mkdir(parents=True, exist_ok=True)
     for sub in ('cmd', 'done'):
         (d / sub).mkdir(exist_ok=True)
+    # The team shares this stage: any member must be able to drop a command
+    # (cmd/) and read the status. mkdir alone follows the umask, so force it.
+    for path in (d, d / 'cmd', d / 'done'):
+        path.chmod(0o777)
     return d
 
 
@@ -94,16 +108,25 @@ def load_models(base):
     return load(p) if p.exists() else {}
 
 
+def load_status(base):
+    p = stage_dir(base) / 'status.json'
+    return load(p) if p.exists() else None
+
+
 def save_models(base, records):
     save(stage_dir(base) / 'models.json', records)
 
 
 def write_status(base, port, records, loading=None):
-    """status.json: supervisor liveness + loaded models + the load currently in progress."""
+    """status.json: supervisor liveness + loaded models + the load currently in progress.
+
+    owner and job_id make the stage visible to the rest of the team: teammates cannot
+    see each other's jobs with `squeue -u $USER`, so the reserving member records both
+    here and the CLI queries Slurm from their account instead."""
     save(stage_dir(base) / 'status.json',
          {'updated': time.time(), 'supervisor': 'running', 'router_port': port,
           'node': os.uname().nodename, 'models': {k: v['served_model'] for k, v in records.items()},
-          'loading': loading})
+          'loading': loading, 'owner': getpass.getuser(), 'job_id': os.environ.get('SLURM_JOB_ID')})
 
 
 
@@ -177,7 +200,10 @@ def load_model(base, profile_name, records, router_port=None):
         write_status(base, router_port, records,
                      dict(loading, phase='engine', detail='vllm serve demarre (cold load des poids)'))
     print('STAGE_LOAD {} slice {} port {} :: {}'.format(
-        p['id'], slice_, api_port, ' '.join(shlex.quote(a) for a in argv)), flush=True)
+        p['id'], slice_, api_port,
+        ' '.join(shlex.quote(a) for a in
+                 [value if not value.startswith('VLLM_API_KEY=') else 'VLLM_API_KEY=[REDACTED]'
+                  for value in argv])), flush=True)
     child = subprocess.Popen(argv)
     start = time.monotonic()
     last_beat = 0.0

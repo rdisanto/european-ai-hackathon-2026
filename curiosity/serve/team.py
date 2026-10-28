@@ -415,15 +415,50 @@ def diagnose(args):
     script_job(base, site, script, [], name, output, partition, environment=environment)
 
 
+def stage_job(base, status):
+    """The team's running stage job, seen through the status owner's Slurm view.
+
+    `squeue -u $USER` only shows our own jobs, so a teammate cannot see the stage a
+    colleague reserved -- which is exactly why `stage status` returned nothing and,
+    worse, `stage reserve` would have submitted a second, colliding stage. The shared
+    status.json records the owner; Slurm is then asked from their account (cancelling
+    still requires the owner account, as Slurm enforces). Falls back to our own jobs
+    for a stage without an owner on record."""
+    owner = (status or {}).get('owner') if status else None
+    inference.ensure_slurm()
+    if owner:
+        try:
+            output = subprocess.check_output(['squeue', '-h', '-u', owner, '-o', '%i|%j|%T|%M|%l|%N'],
+                                             stderr=subprocess.DEVNULL, timeout=30).decode()
+        except (OSError, subprocess.SubprocessError):
+            output = ''
+        for line in output.splitlines():
+            fields = line.strip().split('|')
+            if len(fields) == 6 and fields[1] == 'stage':
+                return dict(zip(('job_id', 'name', 'state', 'elapsed', 'limit', 'nodes'), fields))
+    for job in (router.active_jobs() or {}).values():
+        if job['name'] == 'stage':
+            return job
+    return None
+
+
 def stage_reserve(base, site, time_override, qos, reservation, restart=False):
     """Reattach to the running stage, or submit ONE long 1-node/6-GPU job (never a second)."""
-    existing = [j for j in (router.active_jobs() or {}).values() if j['name'] == 'stage']
+    # The stage is team-shared: any member's status counts, not only our own jobs.
+    status = stage.load_status(base)
+    job = stage_job(base, status)
+    existing = [job] if job else []
     if existing and not restart:
-        print('A stage is already reserved as job {} ({}); reattaching to it. '
-              'Use --restart to replace it instead.'.format(existing[0]['job_id'], existing[0].get('state')))
+        print('A stage is already reserved as job {} ({}){}; reattaching to it. '
+              'Use --restart to replace it instead.'.format(
+                  existing[0]['job_id'], existing[0].get('state'),
+                  ' by ' + status['owner'] if status and status.get('owner') else ''))
         return
     if restart and existing:
-        subprocess.check_call(['scancel', '--name=stage', '--user=' + getpass.getuser()])
+        owner = status.get('owner') if status else None
+        if owner and owner != getpass.getuser():
+            raise ValueError('The stage reservation belongs to {}; only {} can replace it.'.format(owner, owner))
+        subprocess.check_call(['scancel', '--name=stage', '--user=' + (owner or getpass.getuser())])
         cleared = stage.clear_commands(base)
         models_dropped = stage.clear_models(base)
         bits = []
@@ -465,11 +500,12 @@ def stage_request(base, action, profile):
 def stage_status(base, as_json=False):
     d = stage.stage_dir(base)
     models = stage.load_models(base) if d.exists() else {}
-    status = inference.load(d / 'status.json') if (d / 'status.json').exists() else None
+    status = stage.load_status(base)
     if as_json:
         cmd_dir = d / 'cmd' if d.exists() and (d / 'cmd').is_dir() else None
         pending = sorted(cmd_dir.glob('*.cmd')) if cmd_dir else []
         print(json.dumps({'supervisor': (status or {}).get('supervisor'),
+                          'owner': (status or {}).get('owner'),
                           'router': {'host': (status or {}).get('node'),
                                      'port': status.get('router_port')} if status and status.get('router_port') else None,
                           'models': {k: v['served_model'] for k, v in models.items()},
@@ -477,12 +513,13 @@ def stage_status(base, as_json=False):
                           'pending': [p.name for p in pending]}))
         return
     if status:
+        owner = ' by ' + status['owner'] if status.get('owner') else ''
         if status.get('supervisor') == 'down':
             stopped = time.strftime('%H:%M', time.localtime(status.get('updated', time.time())))
-            print('supervisor: down since {} (stage down - reserve again to restart)'.format(stopped))
+            print('supervisor: down since {} (stage down - reserve again to restart){}'.format(stopped, owner))
         else:
-            print('supervisor: {} on {} ; router 0.0.0.0:{}'.format(
-                status.get('supervisor'), status.get('node'), status.get('router_port')))
+            print('supervisor: {} on {} ; router 0.0.0.0:{}{}'.format(
+                status.get('supervisor'), status.get('node'), status.get('router_port'), owner))
             loading = status.get('loading')
             if loading:
                 age = ''
@@ -506,10 +543,10 @@ def stage_status(base, as_json=False):
         if pending:
             oldest = time.strftime('%H:%M', time.localtime(pending[0].stat().st_mtime))
             print('  pending commands: {} (oldest {}) - supervisor busy or stuck'.format(len(pending), oldest))
-    jobs = router.active_jobs() or {}
-    for j in jobs.values():
-        if j['name'] == 'stage':
-            print('reservation: job {} {}'.format(j['job_id'], j['state']))
+    # The stage may have been reserved by a teammate: ask Slurm from the owner's view.
+    job = stage_job(base, status)
+    if job:
+        print('reservation: job {} {}'.format(job['job_id'], job['state']))
 
 
 def stage_command(args):
@@ -524,19 +561,25 @@ def stage_command(args):
         stage_status(base, bool(getattr(args, 'json', False)))
     elif action == 'down':
         inference.ensure_slurm()
-        subprocess.check_call(['scancel', '--name=stage', '--user=' + getpass.getuser()])
+        status = stage.load_status(base)
+        owner = status.get('owner') if status else None
+        if owner and owner != getpass.getuser():
+            raise ValueError('The stage belongs to {}; only {} can down it '
+                             '(Slurm grants no cross-account cancellation).'.format(owner, owner))
+        subprocess.check_call(['scancel', '--name=stage', '--user=' + (owner or getpass.getuser())])
         cleared = stage.clear_commands(base)
         models_dropped = stage.clear_models(base)
         inference.save(stage.stage_dir(base) / 'status.json',
                        {'updated': time.time(), 'supervisor': 'down',
-                        'router_port': None, 'node': None, 'models': {}, 'loading': None})
+                        'router_port': None, 'node': None, 'models': {}, 'loading': None,
+                        'owner': owner or getpass.getuser()})
         bits = []
         if cleared:
             bits.append('Cleared {} pending command(s).'.format(cleared))
         if models_dropped:
             bits.append('Forgot {} model record(s) (containers died with the node).'.format(models_dropped))
         print('Cancelled the stage reservation of {}.{}'.format(
-            getpass.getuser(), ' ' + ' '.join(bits) if bits else ''))
+            owner or getpass.getuser(), ' ' + ' '.join(bits) if bits else ''))
 
 
 def main():

@@ -73,12 +73,13 @@ COMMANDS = {
     'diagnose': ('submit a check job: probe (GPU node), reach (CPU queue -> GPU node, internet), nccl',
                  'serve/team.py diagnose -> diagnostics/probe.sbatch, diagnostics/reach.sbatch or\n'
                  'diagnostics/nccl_check.sbatch (with nccl_task.sh and nccl_check.py). Logs: users/<login>/logs/.'),
-    'stage': ('one long 6-GPU B300 reservation: load/unload models + the router inside',
+    'stage': ('one long 6-GPU B300 reservation shared by the whole team: load/unload models + the router inside',
               'serve/team.py stage reserve -> serve/stage_model.sbatch (1 node / 6 B300, long wall-clock), which runs\\n'
               'serve/stage.py serve: owns the rootless docker (diagnostic recipe) and loads/unloads the requested\\n'
-              'models on their own 4-GPU slices while running the reused router (router.py serve). load/unload\\n'
-              'drop command files that the supervisor inside the reservation polls and acts on; forward reaches the\\n'
-              'stage router over SSH like the normal router.'),
+              'models on their own 4-GPU slices while running the reused router (router.py serve). The stage is\\n'
+              'team-shared: its status lives in $BASE/stage (any member can load/unload and read it; the status\\n'
+              'carries the owner; reserve reattaches to a running stage instead of submitting a second one; down\\n'
+              'is the owner\'s prerogative). Forward reaches the stage router over SSH like the normal router.'),
     'sync': ('only upload this checkout to Curiosity', 'Nothing runs; prints where the release is.'),
 }
 
