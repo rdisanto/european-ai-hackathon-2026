@@ -1,181 +1,118 @@
 # 🚀 QUICKSTART — curiosity/cli.py
 
-Quick start for the Curiosity inference CLI in this repository. Full
-documentation: curiosity/README.md.
-
-## 📋 Prerequisites
-
-- 💻 On your laptop: SSH client + Python 3.7+. Nothing to install (the CLI and
-  everything it runs on Curiosity use only the standard library).
-- 🏢 Project allocation: EUHPC_D30_031.
+Run the team's shared 8× B300 **stage** from your laptop: reserve, load/unload
+models, forward the router port. Nothing to install on the laptop or on
+Curiosity beyond an SSH client and Python 3.7+ (stdlib only). Full
+documentation: `curiosity/README.md`, `docs/slurm-jobs.md`, `docs/how-it-works.md`.
 
 ## ⚙️ Shell configuration (do this ONCE)
 
-Add these lines to your local `~/.bashrc` or `~/.zshrc`. They set your account,
-the team folder and the login node — every CLI command re-reads these
-variables, so there is nothing else to set up.
+Add to your local `~/.bashrc` or `~/.zshrc` — every command re-reads them:
 
 ```bash
-export CURIOSITY_USER=<your CINECA login>                 # e.g. a08trc22 — replace with YOUR ssh login
-export CURIOSITY_BASE='$WORK/cybertwin.ai/hackathon'      # single quotes: $WORK is expanded on Curiosity
-export CURIOSITY_HOST=login07-ext.curiosity.cineca.it
+export CURIOSITY_USER=<your curiosity login>           
+export CURIOSITY_BASE='/storage/hackathon_teams/eai-team05/'
+export CURIOSITY_HOST=ssh.axisapps.io
 ```
 
-Then reload your shell:
 ```bash
 source ~/.bashrc   # or: source ~/.zshrc
 ```
 
-🔐 The first command will ask for your CINECA authentication; subsequent
-commands reuse that SSH connection for 30 minutes.
+🔐 The first command asks for your CINECA authentication; later commands reuse
+that SSH connection for 30 minutes.
+📍 Run from the **repository root** (`cd european-ai-hackathon-2026`); the CLI
+uploads the matching `serve/` release to the cluster itself when needed.
 
-📍 IMPORTANT — commands run from the repository root:
+## 🍴 Clone your own fork, on branch `curiosity`
+
 ```bash
+git clone --branch curiosity git@github.com:rdisanto/european-ai-hackathon-2026.git
 cd european-ai-hackathon-2026
 ```
 
-## 🍴 Clone your own fork, on branch `cybertwin`
+## 🏟️ The stage in one paragraph
 
-The working branch with all the Curiosity/cybertwin changes (qwen35 profile,
-optimized dsv4flashablit, colored status, various server fixes) lives on the
-`cybertwin` branch of the team fork. On a new machine, clone it with SSH (you
-need your GitHub SSH key registered):
-
-```bash
-git clone --branch cybertwin git@github.com:rdisanto/european-ai-hackathon-2026.git
-cd european-ai-hackathon-2026
-```
-
-The official repository is added as `upstream` so you can pull the latest
-changes and open pull requests:
-
-```bash
-git remote add upstream git@github.com:CodifyAG/european-ai-hackathon-2026.git
-git fetch upstream
-```
-
-To update your local branch with the latest official changes:
-```bash
-git pull upstream main
-```
-
-## 🔬 Curiosity cluster (B300, partition `hackathon`)
-
-The `curiosity/` folder in this repository is the same stack retargeted to the
-hackathon B300 cluster (8x NVIDIA B300 per node, driver 580.126.20 / CUDA 13.0,
-docker through the `rootless-docker` module). On that deployment, replace
-`./curiosity/cli.py` with `./curiosity/cli.py` in every command below. Everything
-learned by `curiosity/diagnostics/glm53_b300_first_run.sh` is baked in:
-
-- **Docker runtimes**: the `glm53` and `dsv4flashablit` profiles use the
-  `vllm-openai-docker-0.32` runtime (vllm/vllm-openai v0.32.0, pinned by digest).
-  No SIF, no overlay: the image is pulled on the GPU node, the GPU mode is probed
-  (`--gpus all` / `--runtime=nvidia` / CDI) and **every engine flag plus the parser
-  names are verified against the image itself before the 704 GiB cold load** — a
-  bad flag fails in minutes, not after half an hour of loading weights.
-- **GLM-5.3** (`up glm53`): TP=EP=4 on one node, KV fp8_e4m3, MTP speculative
-  decoding, 1M-token context at 3 concurrent sequences (~12 GiB/card margin at
-  util 0.95). Startup budget 90 min for the cold load.
-- **DeepSeek-V4-Flash abliterated** (`up dsv4flashablit`): same image, one node,
-  4 GPUs, 512K context; its parser names are resolved from the image's registry
-  at startup instead of being guessed.
-- **Router with both models**: `up glm53` and `up dsv4flashablit` are two Slurm
-  jobs; the router serves both names at once (`glm-5.3`,
-  `deepseek-v4-flash-ablit`) and routes by the `model` field. The upstream
-  timeout is 1 h, enough for a 1M-token prefill.
-- **The 756 GB GLM-5.3 checkpoint** already downloaded by the diagnostics script
-  can be reused: map it in `inference-site.json` with
-  `"checkpoints": {"glm53": "<MODEL_DIR of the diagnostics script>"}` instead of
-  running `install glm53`.
-
-Site defaults: partition `hackathon`, no QoS, no account (pass one to `init`
-only if the cluster asks for it). Allocation shape per server: 1 node, 4 GPUs,
-8 CPUs — the same as the manual
-`srun --nodes=1 --ntasks-per-node=1 --gpus-per-task=4 --cpus-per-task=8 --partition=hackathon --pty bash`
-used so far for the diagnostics.
+The team shares **one** long Slurm reservation on one node with **8 B300 GPUs**
+(`stage reserve`). Inside it, a headless supervisor owns rootless docker and a
+router; `stage load <profile>` puts a model on its GPU slice (sized by the
+profile's parallelism) and `stage unload` takes it back — no new job, no queue,
+models swap in minutes. Every loaded model is served by the same
+OpenAI-compatible router under one token. Team-shared: any member can
+load/unload/read status; only the **owner** can `stage down` or `--restart`.
 
 ## 🧑‍💻 Main commands
 
-### 🩺 Cluster, server and team-registry status
 ```bash
-./curiosity/cli.py status
-```
-Shows installed runtimes and checkpoints, your servers (starting / READY with
-node and port), your router, and the ready servers of the whole team (sections
-listed separately, colored output in an interactive terminal).
-
-### ▶️ Start a model server
-```bash
-./curiosity/cli.py up qwen35             # Qwen3.5-122B (4 nodes × 1 GPU, TP4) — default QoS, up to 12 h
-./curiosity/cli.py up dsv4flashablit     # DeepSeek-V4-Flash abliterated (4 nodes × 1 GPU, TP4)
+./curiosity/cli.py stage status          # 🩺 reservation state, loaded models, GPU slices, API ports
+./curiosity/cli.py stage reserve         # 🏟️ submit the stage (or REATTACH to a teammate's — never a 2nd job)
+./curiosity/cli.py stage load gemma4     # ⬆️ load a model into the stage
+./curiosity/cli.py stage unload gemma4   # ⬇️ free its GPU slice
+./curiosity/cli.py stage down            # 🛑 cancel the reservation (owner only)
+./curiosity/cli.py stage forward         # 🔌 forward 127.0.0.1:18000 → the stage router (keep running)
 ```
 
-Profiles available with `up` (full served model name, quantization, context,
-and requested hardware — verified against `serve/profiles/*.json`):
+### 🚀 Profiles (verified against `serve/profiles/*.json`)
 
-| 🚀 Profile / command | 🧠 Full served model name | 🔢 Quantization | 📏 Context (tokens) | 🖥️ Nodes | 🎴 GPUs/node | ⏳ Lifetime |
-| --- | --- | --- | --- | --- | --- | --- |
-| `./curiosity/cli.py up qwen35` | `qwen3.5-122b-a10b-fp8-curiosity` | FP8 | 32,768 | 4 | 1 | 12 h |
-| `./curiosity/cli.py up dsv4flashablit` | `deepseek-v4-flash-ablit` | FP8 weights | 524,288 | 1 | 4 | 12 h |
-| `./curiosity/cli.py up deepseek41` | `deepseek-v4.1-flash-1017-curiosity` | bf16 (kv `fp8_ds_mla`) | 2,048 | 2 | 4 | 2 h |
-| `./curiosity/cli.py up deepseek41-8gpu` | `deepseek-v4.1-flash-1017-16gpu-curiosity` | bf16 (kv `fp8_ds_mla`) | 32,768 | 8 | 1 | 2 h |
-| `./curiosity/cli.py up glm53` | `glm-5.3` | FP8 weights + KV `fp8_e4m3`, MTP | 1,048,576 | 1 | 4 | 2 h |
-| `./curiosity/cli.py up qwen06b` | `qwen3-0.6b-curiosity` | bf16 | 40,960 | 1 | 1 | 1 h |
+| Profile | 🧠 Served name | 🎴 GPUs | 🔢 Quantization | 📏 Context | ⏳ Cold load |
+| --- | --- | --- | --- | --- | --- |
+| `glm53` | `glm-5.3` | 4 (TP4+EP) | FP8 weights + KV `fp8_e4m3`, MTP | 1,048,576 | 20-40 min (704 GiB) |
+| `qwen38flash` | `qwen-3.8-flash` | 1 (TP1) | FP8 weights + KV, MTP k=3 | 262,144 | ~8 min (measured) |
+| `gemma4` | `gemma-4` | 1 (TP1) | bf16 | 32,768 | ~2 min (58 GiB) |
 
-Useful options:
-```bash
-./curiosity/cli.py up qwen35 --qos boost_qos_dbg --time 00:30:00   # debug queue: starts sooner, max 30 min
-```
-A server becomes READY only after its API checks have passed. Until then,
-status shows `starting (not ready yet)`. Only one server per model can run at
-a time in the team folder; run `up` again to replace it when it expires.
+Slices are allocated from the first aligned free block: glm53 takes GPUs 0-3,
+the TP1 profiles take 4 and 5 — one TP4 + up to two TP1 models fit at once.
+Every engine flag and tool/reasoning parser name is verified against the
+imported docker image **before** the cold load, so a bad profile fails in
+seconds, not after 40 minutes of weight loading.
 
-### 🌐 Access the models
+## 🌐 Access the models (second terminal)
+
 ```bash
-./curiosity/cli.py router up --hours 12   # start your router (once; it renews itself)
-./curiosity/cli.py forward                # forward 127.0.0.1:18000 to your router — keep it running
-```
-In a second terminal:
-```bash
-./curiosity/cli.py router token > ~/.config/curiosity-router-token
-TOKEN=$(cat ~/.config/curiosity-router-token)
+./curiosity/cli.py stage forward --local-port 18000   # 18000 is the default
+./curiosity/cli.py router token                        # 🔑 the stage router's shared token
 curl http://127.0.0.1:18000/v1/models -H "Authorization: Bearer ***"
 ```
-→ OpenAI-compatible base URL: `http://127.0.0.1:18000/v1`, token as API key.
-Served model names: `qwen3.5-122b-a10b-fp8-curiosity`,
-`deepseek-v4-flash-0731-ablit-curiosity`, etc. (see the table in the README).
 
-## 🛠️ Other useful commands
+→ OpenAI-compatible base URL: `http://127.0.0.1:18000/v1`, token as API key
+(point Hermes/o at it; model names per the table above).
+
+## 🛠️ One-time setup (first machine / first model)
 
 ```bash
-./curiosity/cli.py install <profile>      # ⬇️ download runtime + weights (CPU jobs, first time)
-./curiosity/cli.py logs <profile|jobid> -f # 📜 logs of a server / job / router
-./curiosity/cli.py down <profile|jobid>   # 🛑 stop a server; `down router` stops the router
-./curiosity/cli.py router token           # 🔑 print the router token
-./curiosity/cli.py --help                 # ❓ full command list
+./curiosity/cli.py init --account EUHPC_D30_031   # 🏗️ team folder + inference-site.json (skip if it exists)
+./curiosity/cli.py install <profile>              # ⬇️ download the checkpoint (CPU job, resumable, verified shard by shard)
 ```
 
-## 🚦 Typical startup sequence
+## 🚦 Typical day
 
 ```bash
-# 1️⃣ Once per machine: variables in .bashrc/.zshrc (above) + source
-# 2️⃣ Once per team, if the folder does not exist yet:
-./curiosity/cli.py init --account EUHPC_D30_031
-# 3️⃣ First-time model install (long — tens of minutes to hours):
-./curiosity/cli.py install qwen35 dsv4flashablit
-# 4️⃣ Launch:
-./curiosity/cli.py up qwen35 --qos boost_qos_dbg --time 00:30:00
-./curiosity/cli.py status                # wait for READY
-# 5️⃣ Access:
-./curiosity/cli.py router up --hours 12
-./curiosity/cli.py forward               # in a terminal, keep it open
+# 1️⃣ morning: is the stage alive?
+./curiosity/cli.py stage status
+# 2️⃣ not reserved? (or reattaches to a teammate's)
+./curiosity/cli.py stage reserve
+# 3️⃣ load what you need, then forward the router in another terminal
+./curiosity/cli.py stage load qwen38flash
+./curiosity/cli.py stage forward
+# 4️⃣ done for the day: free GPUs for teammates (keep the reservation running)
+./curiosity/cli.py stage unload qwen38flash
 ```
 
 ## 🆘 Troubleshooting
 
-- ❌ Never READY? → `./curiosity/cli.py logs <profile>`; the check results are in
-  `$BASE/users/<your login>/runs/<profile>-*/evidence/`.
-- 🌩️ Router answers 502 upstream_unreachable? → your server is not reachable from
-  the CPU queue; see `./curiosity/cli.py diagnose`.
-- 🔌 SSH connection stale after 30 min of inactivity: the first command asks for
-  authentication again — this is normal.
+- ⏳ `stage status` says *no model loaded* while a load runs → normal: the
+  model appears in `models.json` only when READY; the loading claim shows the
+  GPU slice it already pins.
+- 🧊 Load stuck at *preflight* → the docker image is missing on the node and
+  the pull is synchronous; check `status.json.updated` age, then pre-pull the
+  image on that node. `stage down` also empties pending `cmd/` files, so a
+  wedged command replays never.
+- 🧨 `docker introuvable` inside a job → the `rootless-docker/1.75` module
+  failed to load; the reason is in `$BASE/stage/reserve-stage-<jobid>.out`.
+  The supervisor log is `$BASE/stage/supervisor.out`.
+- 🔌 `stage forward` port busy → `--local-port <N>`, or close the shared SSH
+  connection (it drops its forwards).
+- 🚫 `stage down` refused → only the reservation owner can cancel it (Slurm
+  rejects cross-account scancel); `stage status` shows the owner.
+- 📜 Anything else → `./curiosity/cli.py logs <profile|jobid|router>` and
+  `./curiosity/cli.py diagnose probe`.
