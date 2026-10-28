@@ -28,17 +28,20 @@
     "--gpu-memory-utilization",
     "0.90"
   ],
-  "parser_candidates": {},
+  "parser_candidates": {
+    "tool": ["gemma4"],
+    "reasoning": ["gemma4"]
+  },
   "environment": {
     "VLLM_ENABLE_CUDA_COMPATIBILITY": "0",
     "VLLM_ENGINE_READY_TIMEOUT_S": "1800"
   },
   "hooks": [],
-  "checks": "chat",
+  "checks": "chat_tools",
   "client": {
     "local_port": 18085,
     "timeout_seconds": 600
   },
   "startup_timeout_seconds": 1800,
-  "validation": "HF-pinned facts (fetched 2026-10-28): google/gemma-4-31B-it @ revision 842da3794eaa0b77d5f08bae87a17459d91ff475, 2 safetensors shards totalling 62,546,338,248 bytes (~58 GiB), architecture Gemma4ForConditionalGeneration. TP1 affinity from config.json: bf16 weights ~58 GiB fit one 268 GiB B300 with room for KV; text_config = 60 layers, 16 KV heads, head_dim 256 -> full-attention worst case 0.94 MiB/token, so max-model-len is capped at 32768 (~30 GiB KV upper bound, far less in practice since most layers use the 1024-token sliding window). checks=chat with NO parser_candidates: Gemma 4 tool/reasoning parser names are not guessed; add them only after resolving them from the image's parser registry like glm53 does. NOT yet GPU-validated: the preflight verifies every engine flag against the imported image's `vllm serve --help`, but whether vllm-openai 0.32 registers Gemma4ForConditionalGeneration is only known at first cold load (~2 min for 58 GiB) - trust it only after a first READY endpoint and its chat checks."
+  "validation": "HF-pinned facts (fetched 2026-10-28): google/gemma-4-31B-it @ revision 842da3794eaa0b77d5f08bae87a17459d91ff475, 2 safetensors shards totalling 62,546,338,248 bytes (~58 GiB), architecture Gemma4ForConditionalGeneration. TP1 affinity from config.json: bf16 weights ~58 GiB fit one 268 GiB B300 with room for KV; text_config = 60 layers, 16 KV heads, head_dim 256 -> full-attention worst case 0.94 MiB/token, so max-model-len is capped at 32768 (~30 GiB KV upper bound, far less in practice since most layers use the 1024-token sliding window). Tool calling was added on 2026-10-28 after the first live endpoint 400'd every Hermes request with 'auto tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set' (the profile shipped with NO parser flags). Parser name is grounded, not guessed: upstream vLLM serves this exact checkpoint with --tool-call-parser gemma4 --reasoning-parser gemma4 (vllm-project/vllm issues #39468, #39392), and verify_image still resolves both candidates against the imported image's parser registry + `vllm serve --help=all` before the cold load, failing fast with the full registry if gemma4 is absent there; --enable-auto-tool-choice is appended automatically by verify_image (glm53's lesson). checks raised chat -> chat_tools so a future regression fails the load, not the first client request. Known upstream caveats to watch at first chat_tools run: tool-call format bugs in older vLLM (#39468) and <pad> tokens under concurrent tool calls (#39392); four_concurrent_requests + forced_function_call will surface either. GPU-validated for chat only (first READY endpoint passed the chat suite); tool/reasoning parsing on vllm-openai-docker-0.32 is NOT yet validated - trust it only after chat_tools passes 7/7."
 }

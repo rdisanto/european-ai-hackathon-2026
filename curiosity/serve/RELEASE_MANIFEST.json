@@ -9,7 +9,7 @@
     "lifecycle.py": "eb6c49af84a3a31be10b4a2255a966d8fbf76862bd7cfb70d11bcac6b21c8bc7",
     "node.py": "28e45db6551c5a419eda15a6f763dcc5d27fc3fa3084dd0d93107aeb6c8c3106",
     "prepare_run.sh": "033bc136770dd19e1508894ab18b9c22c10a48a20071cb2a8588c839324b4ad5",
-    "profiles/gemma4.json": "53ce91143049b35f152b6c8c37c57165a6c5c465869319198ec2733997159c1c",
+    "profiles/gemma4.json": "69b3bc9c79f68669428c6d7787dded7cd05bb27a89350fd0c6e363aea3960579",
     "profiles/glm53.json": "597f062f5b5ef9e5239b2bb62c4b7920d2803ef7755a3d98e5a7610615efad74",
     "profiles/qwen38flash.json": "c1427b551085a06f70658e1eac97d9d65ecdd2d031a989075c10bf164450cd1d",
     "registry.py": "6257e6fc606e28fd4fb252bfa8ae9bff70b6ae3f8dc162a11744b6a1e3e8519e",

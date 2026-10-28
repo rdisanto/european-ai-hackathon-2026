@@ -280,7 +280,7 @@ class Framework(unittest.TestCase):
             obj.update(edit)
             with self.assertRaises(ValueError):
                 inference.profile_check(obj)
-        self.assertEqual(inference.check_suite(p), inference.CHECK_SUITES['chat'])
+        self.assertEqual(inference.check_suite(p), inference.CHECK_SUITES['chat_tools'])
         self.assertNotIn('forced_function_call', inference.CHECK_SUITES['chat'])
 
     def test_registry_claims_one_server_per_name(self):
