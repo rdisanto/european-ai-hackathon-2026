@@ -493,6 +493,9 @@ def stage_request(base, action, profile):
     name = '{}-{}-{}.cmd'.format(int(time.time() * 100000) % 100000, action, inference.identifier(profile))
     path = d / 'cmd' / name
     path.write_text(json.dumps({'action': action, 'profile': profile}) + '\n')
+    # The CLI runs with umask 077: without this the supervisor (another member's
+    # account, per the shared stage) could not read the command back.
+    stage.shared_visible(path)
     print('Queued {} {} -> {} (the supervisor inside the stage acts on it within seconds)'.format(
         action, profile, path))
 
@@ -569,10 +572,12 @@ def stage_command(args):
         subprocess.check_call(['scancel', '--name=stage', '--user=' + (owner or getpass.getuser())])
         cleared = stage.clear_commands(base)
         models_dropped = stage.clear_models(base)
-        inference.save(stage.stage_dir(base) / 'status.json',
+        status_path = stage.stage_dir(base) / 'status.json'
+        inference.save(status_path,
                        {'updated': time.time(), 'supervisor': 'down',
                         'router_port': None, 'node': None, 'models': {}, 'loading': None,
                         'owner': owner or getpass.getuser()})
+        stage.shared_visible(status_path)
         bits = []
         if cleared:
             bits.append('Cleared {} pending command(s).'.format(cleared))

@@ -23,10 +23,10 @@
     "runtime_patches/pp_kv_empty_groups/sitecustomize.py": "6e847d74dee3d59a11e5b9ccf1e5208de486744bb4f10d009ce5ca27003650b7",
     "serve_model.sbatch": "ed3c145e69dc5d6f958bad6c97104d8aafd91ab23c5d2b6a9c24eb32d5b7d7d6",
     "site.example.json": "2a158f4e20fbfd27da0208ef72f709e4be0b73dd4d7ba0ffffc2e278e056f0aa",
-    "stage.py": "32a7b9fc37bfd07c86ce131576372c8b13d820fa7543405f6a5932dc44cca9a4",
+    "stage.py": "df7edfb188125c9622514168bc65fd73793780e01711586c00761ce34ef2b20d",
     "stage_model.sbatch": "4d3d3e6516d00c48b55a548d1584c5fdab045df4ffec39b447409bd1b59f10cf",
     "submit_server.sh": "91f1f82e423e1aad97a1827a76a0874e2912130bb4d43d22dad7ed1162d006b9",
-    "team.py": "f0c111f70203a222b218de7c017903657b20bfe9164986f166f6a046d131d010",
+    "team.py": "98cca6aed33947fc383d1ac95d90834a34dd0ed20ddf60ee2d0796932bdbef09",
     "test_endpoint.py": "a2609712000ce3a4ec1f65c8c6ac2f26a29141cf6dec998974935cb39ac56776"
   }
 }

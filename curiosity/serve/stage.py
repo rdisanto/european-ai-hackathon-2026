@@ -103,6 +103,19 @@ def clear_models(base):
     return len(records)
 
 
+def shared_visible(path):
+    """Team-shared stage files must stay readable by every member.
+
+    Both the CLI (team.py main: os.umask(0o077)) and the sbatch supervisor inherit
+    umask 077, which would leave status.json, models.json, command files and logs at
+    0600 -- a teammate would get "Permission denied" reading the very stage they are
+    supposed to share. The directory itself is 0777; the files follow it."""
+    try:
+        path.chmod(0o644)
+    except OSError:
+        pass
+
+
 def load_models(base):
     p = stage_dir(base) / 'models.json'
     return load(p) if p.exists() else {}
@@ -114,7 +127,9 @@ def load_status(base):
 
 
 def save_models(base, records):
-    save(stage_dir(base) / 'models.json', records)
+    p = stage_dir(base) / 'models.json'
+    save(p, records)
+    shared_visible(p)
 
 
 def write_status(base, port, records, loading=None):
@@ -123,10 +138,11 @@ def write_status(base, port, records, loading=None):
     owner and job_id make the stage visible to the rest of the team: teammates cannot
     see each other's jobs with `squeue -u $USER`, so the reserving member records both
     here and the CLI queries Slurm from their account instead."""
-    save(stage_dir(base) / 'status.json',
-         {'updated': time.time(), 'supervisor': 'running', 'router_port': port,
-          'node': os.uname().nodename, 'models': {k: v['served_model'] for k, v in records.items()},
-          'loading': loading, 'owner': getpass.getuser(), 'job_id': os.environ.get('SLURM_JOB_ID')})
+    p = stage_dir(base) / 'status.json'
+    save(p, {'updated': time.time(), 'supervisor': 'running', 'router_port': port,
+             'node': os.uname().nodename, 'models': {k: v['served_model'] for k, v in records.items()},
+             'loading': loading, 'owner': getpass.getuser(), 'job_id': os.environ.get('SLURM_JOB_ID')})
+    shared_visible(p)
 
 
 
@@ -293,6 +309,11 @@ def serve(args):
     node.ensure_docker()
     d = ensure_dirs(base)
     log = (d / 'supervisor.out').open('a')
+    # The slurmd-written job log and this supervisor log both start at 0600 (umask 077);
+    # the stage is team-shared, so make them readable now and on every boot (this also
+    # repairs files left 0600 by a pre-fix supervisor).
+    for path in d.glob('*.out'):
+        shared_visible(path)
     records = load_models(base)
     port, router_child = start_router(base, site, log)
     write_status(base, port, records)
@@ -318,10 +339,12 @@ def serve(args):
                     else:
                         result = {'ok': False, 'action': act or '?', 'error': 'unknown action'}
                     target.write_text(json.dumps(result) + '\n')
+                    shared_visible(target)
                     cmd_path.unlink()
                     write_status(base, port, records)
                 except (ValueError, OSError) as error:
                     target.write_text(json.dumps({'ok': False, 'error': str(error)}) + '\n')
+                    shared_visible(target)
                     cmd_path.unlink()
             records = sweep(base, records, log)
         except KeyboardInterrupt:

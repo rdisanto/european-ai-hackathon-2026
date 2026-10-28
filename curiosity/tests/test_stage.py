@@ -111,6 +111,8 @@ class Stage(Framework):
                                '--base', str(base)], env=self.env, stderr=sp.PIPE)
         cmds = list((d / 'cmd').glob('*.cmd'))
         self.assertEqual(len(cmds), 1, out)
+        cmd_mode = cmds[0].stat().st_mode & 0o777
+        self.assertEqual(cmd_mode, 0o644, oct(cmd_mode))  # CLI umask 077: readable by the shared supervisor
         self.assertEqual(json.loads(cmds[0].read_text()), {'action': 'load', 'profile': 'glm53'})
         self.assertIn(b'Queued load glm53', out)
 
@@ -126,6 +128,7 @@ class Stage(Framework):
         status['owner'] = 'alice'  # another team member reserved this stage
         status['node'] = 'r3c1'
         inference.save(d / 'status.json', status)
+        self.assertEqual((d / 'status.json').stat().st_mode & 0o777, 0o644, 'status.json must be team-readable')
         self.command('squeue', '#!/bin/bash\nprintf "600|stage|RUNNING|0:10|11:00:00|r3c1\n"\n')
         self.command('sbatch', '#!/bin/bash\necho "$*" >> "$HOME/sbatch-calls"\nprintf "700\n"\n')
         self.command('scancel', '#!/bin/bash\nexit 0\n')
