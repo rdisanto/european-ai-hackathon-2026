@@ -28,8 +28,18 @@
     "{\"method\":\"mtp\",\"num_speculative_tokens\":5}"
   ],
   "parser_candidates": {
-    "tool": ["glm47", "glm45", "glm47_moe", "glm4", "glm4_moe"],
-    "reasoning": ["glm47", "glm45", "glm47_moe_reasoning_parser"]
+    "tool": [
+      "glm47",
+      "glm45",
+      "glm47_moe",
+      "glm4",
+      "glm4_moe"
+    ],
+    "reasoning": [
+      "glm47",
+      "glm45",
+      "glm47_moe_reasoning_parser"
+    ]
   },
   "environment": {
     "OMP_NUM_THREADS": "1",
@@ -46,5 +56,5 @@
     }
   },
   "startup_timeout_seconds": 7200,
-  "validation": "Brought onto curiosity's hackathon partition through the B300 diagnostic recipe (glm53_b300_first_run.sh): rootless docker (vllm/vllm-openai v0.32.0, pinned by digest, same image as dsv4flashablit so one pull serves both and the router routes both from the same fork), one node / 4 GPUs / TP4+EP, native 1M-token window (max-model-len 1048576, max 3 concurrent sequences = 66.8 GiB/card KV+indexer vs ~79 GiB free at util 0.95; 4 seqs would leave ~0.8 GiB and risk OOM), FP8 KV cache, chunked prefill + prefix caching, and the MTP speculative layer from the official recipe. Parser names are not guessed: the docker launcher resolves them from the image's parser registry and verifies every flag against `vllm serve --help=all` before the ~20-40 min cold load of 704 GiB, failing fast with the exact list if something is absent. NOT yet GPU-validated in this form: trust it only after a first READY endpoint and its API checks."
+  "validation": "Brought onto curiosity's hackathon partition through the B300 diagnostic recipe (glm53_b300_first_run.sh): rootless docker (vllm/vllm-openai v0.32.0, pinned by digest, the same image the other stage profiles use so one pull serves the whole stage and the router routes every model from the same fork), one node / 4 GPUs / TP4+EP, native 1M-token window (max-model-len 1048576, max 3 concurrent sequences = 66.8 GiB/card KV+indexer vs ~79 GiB free at util 0.95; 4 seqs would leave ~0.8 GiB and risk OOM), FP8 KV cache, chunked prefill + prefix caching, and the MTP speculative layer from the official recipe. Parser names are not guessed: the docker launcher resolves them from the image's parser registry and verifies every flag against `vllm serve --help=all` before the ~20-40 min cold load of 704 GiB, failing fast with the exact list if something is absent. NOT yet GPU-validated in this form: trust it only after a first READY endpoint and its API checks."
 }

@@ -3,7 +3,7 @@
 # $BASE/checkpoints/<checkpoint>, using huggingface_hub inside the profile's own runtime image.
 # Submitted by `cli.py install <profile>` on the CPU queue (internet, no GPU budget), after the
 # runtime job. A profile without a pinned revision gets the current one, printed as PIN_REVISION.
-# Sizes: qwen235b ~239 GB, glm53 ~328 GB, deepseek41 48 shards, qwen06b ~1.5 GB. By hand, from the
+# Sizes: glm53 ~704 GiB, gemma4 ~58 GiB. By hand, from the
 # repository root, after the runtime is installed:
 #   BASE=$WORK/<team folder> sbatch -A <account> curiosity/install/checkpoint.sbatch <profile>
 #SBATCH --job-name=install-checkpoint

@@ -73,6 +73,12 @@ def init(args):
     base.mkdir(parents=True, exist_ok=True)
     for name in ('runtimes', 'checkpoints', 'endpoints', 'users', 'logs', 'tools'):
         (base / name).mkdir(exist_ok=True)
+    # The team root and everything but the per-member trees must be group usable even
+    # when a first member created it under umask 077 (0700 would lock teammates out of
+    # sbatch logs, checkpoints and runtimes); setgid keeps inheritance on the team group.
+    stage.group_open(base, 0o2775)
+    for name in ('runtimes', 'checkpoints', 'endpoints', 'logs', 'tools'):
+        stage.group_open(base / name, 0o2775)
     save(site_file, site)
     inference.private_dir(user_dir(base))
     print('Team folder ready: {} (account {}).'.format(base, site['account']))
@@ -148,7 +154,7 @@ def install(args):
     logs = base / 'logs' / '%x-%j.out'
     runtime_jobs = {}
     if not args.profiles and not args.link_client:
-        raise ValueError('Name profiles to install (e.g. qwen06b), and/or --link-client')
+        raise ValueError('Name profiles to install (e.g. gemma4), and/or --link-client')
     for name in args.profiles:
         profile = inference.profile_check(load(ROOT / 'profiles' / (identifier(name) + '.json')))
         runtime = profile['runtime']
@@ -443,7 +449,7 @@ def stage_job(base, status):
 
 
 def stage_reserve(base, site, time_override, qos, reservation, restart=False):
-    """Reattach to the running stage, or submit ONE long 1-node/6-GPU job (never a second)."""
+    """Reattach to the running stage, or submit ONE long 1-node/8-GPU job (never a second)."""
     # The stage is team-shared: any member's status counts, not only our own jobs.
     status = stage.load_status(base)
     job = stage_job(base, status)
@@ -470,9 +476,11 @@ def stage_reserve(base, site, time_override, qos, reservation, restart=False):
             ', '.join(e['job_id'] for e in existing), ' ' + ' '.join(bits) if bits else ''))
     account = os.environ.get('SBATCH_ACCOUNT') or site.get('account')
     logs = stage.stage_dir(base) / 'reserve-%x-%j.out'
-    logs.parent.mkdir(parents=True, exist_ok=True)
+    # ensure_dirs, not bare mkdir: the stage dir must already carry the team modes and
+    # the setgid bit before slurmd (under any member's account) writes the job log in it.
+    stage.ensure_dirs(base)
     command = ['sbatch', '--parsable', '--job-name=stage', '--partition=' + inference.identifier(site['partition']),
-               '--nodes=1', '--ntasks-per-node=1', '--gres=gpu:6', '--cpus-per-task=32', '--mem=480GB',
+               '--nodes=1', '--ntasks-per-node=1', '--gres=gpu:8', '--cpus-per-task=32', '--mem=480GB',
                '--time=' + inference.time_limit(time_override or '11:00:00'),
                '--signal=B:TERM@60', '--output=' + str(logs),
                '--export=' + ','.join(['ALL', 'BASE=' + str(base), 'CURIOSITY_RELEASE=' + str(RELEASE)])]
@@ -484,7 +492,7 @@ def stage_reserve(base, site, time_override, qos, reservation, restart=False):
         command.append('--reservation=' + inference.identifier(reservation))
     job = inference.sbatch(command + [str(RELEASE / 'serve/stage_model.sbatch')],
                            stage.stage_dir(base) / '.submitting-stage')
-    print('Reserved stage as job {}: 1 node / 6 B300 for {}.'.format(job, time_override or '11:00:00'))
+    print('Reserved stage as job {}: 1 node / 8 B300 for {}.'.format(job, time_override or '11:00:00'))
     print('Inside it: stage load <profile>, stage unload <profile>, stage status.')
 
 
@@ -633,7 +641,7 @@ def main():
     p.add_argument('--proxy', help='probe/reach: also try this HTTP proxy')
     p.add_argument('--link-url', help='reach: also check this cluster link URL')
     p.add_argument('--runtime', default='vllm-0.31.0', help='nccl: runtime image to use')
-    p = command('stage', 'one long 6-GPU B300 reservation: load/unload models + the router inside')
+    p = command('stage', 'one long 8-GPU B300 reservation: load/unload models + the router inside')
     p.add_argument('stage_action', choices=['reserve', 'load', 'unload', 'status', 'down'])
     p.add_argument('profile', nargs='?', help='load/unload: the profile to load or stop')
     p.add_argument('--json', action='store_true', help='status: JSON output (used by cli.py stage forward)')

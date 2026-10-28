@@ -8,7 +8,7 @@
 #SBATCH --partition=hackathon
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --gres=gpu:6
+#SBATCH --gres=gpu:8
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=480GB
 #SBATCH --time=11:00:00
@@ -33,6 +33,6 @@ if ! command -v docker >/dev/null; then
     fi
 fi
 command -v docker >/dev/null || { echo 'docker introuvable : module load rootless-docker/1.75, puis relancer (cf. glm53_b300_first_run.sh preflight)' >&2; exit 1; }
-export STAGE_GPUS=6
+export STAGE_GPUS=8
 cd "$RELEASE"
 exec python3 serve/stage.py serve --base "${BASE:?}"

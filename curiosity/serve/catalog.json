@@ -47,7 +47,7 @@
       ]
     },
     "vllm-backport-sm80-0.13.1-ppkv1": {
-      "about": "Separate SM80 backport runtime with the pinned worker-local PP KV allocation guard. Required by deepseek41-16gpu; base runtime remains unchanged.",
+      "about": "Separate SM80 backport runtime with the pinned worker-local PP KV allocation guard. Kept for future SM80 profiles; base runtime remains unchanged.",
       "image": "docker://lazymio/vllm-backport@sha256:0fc33cd7d2be777bf6faaee9b02adf781dc6d0bc44b9a09ce4865089f67e9cba",
       "overlay_packages": [
         {

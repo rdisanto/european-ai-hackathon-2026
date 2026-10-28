@@ -1,7 +1,7 @@
 {
   "release": "inference/2026-10-27-curiosity-b300",
   "files": {
-    "catalog.json": "c8733b2d47bb03c2aefb67623110e74f725dd2991e9973ac6658835533deee69",
+    "catalog.json": "17b4c3cdb5657aea302a23907ee6210f8529581db6ec56e4a59b24625be8fb7d",
     "client.py": "5f94543c2b08b83fd96c440fcf20439616136e7864898d846fb16e4deaf75560",
     "hooks/nccl_ep.py": "e2a51d455d1e4e040854b5b97fc7c448fcbebbf89f6c66cff5cd859f976f1630",
     "hooks/warm_engram.py": "835074a2e39444c6970923bc882de291e4818af0947e05451bd6abcdfbdf9e89",
@@ -9,13 +9,9 @@
     "lifecycle.py": "eb6c49af84a3a31be10b4a2255a966d8fbf76862bd7cfb70d11bcac6b21c8bc7",
     "node.py": "28e45db6551c5a419eda15a6f763dcc5d27fc3fa3084dd0d93107aeb6c8c3106",
     "prepare_run.sh": "033bc136770dd19e1508894ab18b9c22c10a48a20071cb2a8588c839324b4ad5",
-    "profiles/deepseek41-16gpu.json": "457a55d7e3718b8b51a96a8b69c78030f63c34aa9dd4f0c5f0709ed47efe3587",
-    "profiles/deepseek41-8gpu.json": "e6e56f9ff07fee4193ddd16b24593e56ddbfd191cd2f22f0ff2e9ad9184cf667",
-    "profiles/deepseek41.json": "2f6df9055c2ea318825628a85d62ed81f05e3ff8e7fe2a17b34824b57685c128",
-    "profiles/dsv4flashablit.json": "355202de738002237ef9c57a8233afe5f3f4d4946a93f679744672b3f45831e5",
-    "profiles/glm53.json": "36ac3c7e1459a1be4aa6edbb9590361f6d96132a1e387cfa5c2a70f498e3394d",
-    "profiles/qwen06b.json": "5f950fa1b23c5d70435400985deb62c0bf24177a60e2b52e4872c34769717c4b",
-    "profiles/qwen35.json": "2fa44f1c2533009feca0144f6ccd96d6f2cad8df22c6d6ccc0b4c96884f1e310",
+    "profiles/gemma4.json": "53ce91143049b35f152b6c8c37c57165a6c5c465869319198ec2733997159c1c",
+    "profiles/glm53.json": "597f062f5b5ef9e5239b2bb62c4b7920d2803ef7755a3d98e5a7610615efad74",
+    "profiles/qwen38flash.json": "c1427b551085a06f70658e1eac97d9d65ecdd2d031a989075c10bf164450cd1d",
     "registry.py": "6257e6fc606e28fd4fb252bfa8ae9bff70b6ae3f8dc162a11744b6a1e3e8519e",
     "router.py": "3dac40170d73b53552d73db0bc2ba1cad51e4f4bc6d7cdeeee58e7a8a68c4839",
     "router.sbatch": "2ae1bf6695b6b126faa7c5723832fd6f0335e676c1896363c8b488c016c26810",
@@ -23,10 +19,10 @@
     "runtime_patches/pp_kv_empty_groups/sitecustomize.py": "6e847d74dee3d59a11e5b9ccf1e5208de486744bb4f10d009ce5ca27003650b7",
     "serve_model.sbatch": "ed3c145e69dc5d6f958bad6c97104d8aafd91ab23c5d2b6a9c24eb32d5b7d7d6",
     "site.example.json": "2a158f4e20fbfd27da0208ef72f709e4be0b73dd4d7ba0ffffc2e278e056f0aa",
-    "stage.py": "c1622a7adc758d24a09cb02762d684d205b741ea6dbf0947a78a538499a7273d",
-    "stage_model.sbatch": "4d3d3e6516d00c48b55a548d1584c5fdab045df4ffec39b447409bd1b59f10cf",
+    "stage.py": "becd207085abb2d91661a22d19af74c8fcd4c667d56fff79ff03e74ec62193c8",
+    "stage_model.sbatch": "fc34e34b1675db4f3033562e49aa4afabb438b0002739fdebd91a592ea4456a6",
     "submit_server.sh": "91f1f82e423e1aad97a1827a76a0874e2912130bb4d43d22dad7ed1162d006b9",
-    "team.py": "98cca6aed33947fc383d1ac95d90834a34dd0ed20ddf60ee2d0796932bdbef09",
+    "team.py": "68ded58a48ecf80d36fb6093c8fd9a1b542e9aa348d531d983e56ff798b58e51",
     "test_endpoint.py": "a2609712000ce3a4ec1f65c8c6ac2f26a29141cf6dec998974935cb39ac56776"
   }
 }

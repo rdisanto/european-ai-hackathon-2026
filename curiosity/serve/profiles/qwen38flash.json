@@ -1,0 +1,59 @@
+{
+    "schema_version": 1,
+    "id": "qwen38flash",
+    "model_id": "Qwen/Qwen3.8-Flash-Next-FP8",
+    "checkpoint": "qwen38-flash-fp8",
+    "expected_shards": 131,
+    "revision": "236dfdf285828023ca3bcd3f37366c58a3469b13",
+    "runtime": "vllm-openai-docker-0.32",
+    "served_model": "qwen-3.8-flash",
+    "stage_api_port": 30400,
+    "parallelism": {
+        "tensor": 1,
+        "pipeline": 1,
+        "data": 1
+    },
+    "resources": {
+        "nodes": 1,
+        "gpus_per_node": 1,
+        "cpus_per_task": 16,
+        "memory": "120GB",
+        "time": "7-00:00:00"
+    },
+    "engine_args": [
+        "--max-model-len",
+        "262144",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--kv-cache-dtype",
+        "fp8",
+        "--attention-config",
+        "{\"indexer_kv_dtype\": \"fp8\"}",
+        "--speculative-config",
+        "{\"method\": \"mtp\", \"num_speculative_tokens\": 3}",
+        "--enable-prefix-caching",
+        "--max-num-seqs",
+        "64",
+        "--max-num-batched-tokens",
+        "8192",
+        "--enable-auto-tool-choice",
+        "--tool-call-parser",
+        "qwen3_coder",
+        "--reasoning-parser",
+        "qwen3",
+        "--limit-mm-per-prompt",
+        "{\"image\": 0, \"video\": 0}"
+    ],
+    "environment": {
+        "VLLM_ENABLE_CUDA_COMPATIBILITY": "0",
+        "VLLM_ENGINE_READY_TIMEOUT_S": "3600"
+    },
+    "hooks": [],
+    "checks": "chat_tools",
+    "client": {
+        "local_port": 18084,
+        "timeout_seconds": 600
+    },
+    "startup_timeout_seconds": 3600,
+    "validation": "TP1 on one B300, per the Qwen3.8-Flash-Next-FP8 dossier (180B total / 6B active, 172.78 GiB FP8 on disk, 131 shards, 185502232570 bytes, HF revision 236dfdf2 pinned; native ctx 262144; fits the 268.6 GiB measured on curiosity with ~25% margin, KV fp8 ~4 GiB per 262K context). engine_args are the TP1 grid of that dossier verbatim: no --enforce-eager (lesson from GLM-5.3: launch-bound x12), no expert parallelism at TP1, MTP k=3 on the single MTP layer, FP8 KV plus indexer_kv_dtype fp8, qwen3_coder tool parser, qwen3 reasoning parser, vision/video disabled for text-only serving. Parsers are given explicitly, so parser_candidates is intentionally absent (profile_check rejects both). VLLM_ENABLE_CUDA_COMPATIBILITY=0: the node driver 580.126.20 rejects the CUDA-compat mode with cudaErrorSystemDriverMismatch (803); multi-GPU container runs proved it without that mode, TP1 included. Placement: nodelist dgx16 is an operator order; dgx15 is excluded because /run/nvidia-persistenced/socket is missing there, so every CDI container creation fails. The checkpoint is already installed at checkpoints/qwen38-flash-fp8 (131/131 sha verified), so install is not needed: preflight re-verifies config.json, tokenizer_config.json and all 131 shards readable and non-empty, and the docker image (pinned by digest) is pulled on the node. Measured on the identical grid as a manual submit (job 12256, dgx16, 28 Oct 2026): submit to INFERENCE_READY 7m35s, model load 241s, engine init 161s, 7/7 API checks, tool-call and needle OK, bs1 decode median 235 tok/s (steady ITL ~301), MTP k=3 acceptance mean length 2.54. Roofline for this model at bs1 is 300-500 tok/s, so k is still an open question; k=0..3 is being replayed on this controller."
+}

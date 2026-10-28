@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "gemma4",
+  "model_id": "google/gemma-4-31B-it",
+  "checkpoint": "gemma4",
+  "expected_shards": 2,
+  "revision": "842da3794eaa0b77d5f08bae87a17459d91ff475",
+  "runtime": "vllm-openai-docker-0.32",
+  "served_model": "gemma-4",
+  "stage_api_port": 30401,
+  "parallelism": {
+    "tensor": 1,
+    "pipeline": 1,
+    "data": 1
+  },
+  "resources": {
+    "nodes": 1,
+    "gpus_per_node": 1,
+    "cpus_per_task": 16,
+    "memory": "120GB",
+    "time": "7-00:00:00"
+  },
+  "engine_args": [
+    "--max-model-len",
+    "32768",
+    "--enable-chunked-prefill",
+    "--enable-prefix-caching",
+    "--gpu-memory-utilization",
+    "0.90"
+  ],
+  "parser_candidates": {},
+  "environment": {
+    "VLLM_ENABLE_CUDA_COMPATIBILITY": "0",
+    "VLLM_ENGINE_READY_TIMEOUT_S": "1800"
+  },
+  "hooks": [],
+  "checks": "chat",
+  "client": {
+    "local_port": 18085,
+    "timeout_seconds": 600
+  },
+  "startup_timeout_seconds": 1800,
+  "validation": "HF-pinned facts (fetched 2026-10-28): google/gemma-4-31B-it @ revision 842da3794eaa0b77d5f08bae87a17459d91ff475, 2 safetensors shards totalling 62,546,338,248 bytes (~58 GiB), architecture Gemma4ForConditionalGeneration. TP1 affinity from config.json: bf16 weights ~58 GiB fit one 268 GiB B300 with room for KV; text_config = 60 layers, 16 KV heads, head_dim 256 -> full-attention worst case 0.94 MiB/token, so max-model-len is capped at 32768 (~30 GiB KV upper bound, far less in practice since most layers use the 1024-token sliding window). checks=chat with NO parser_candidates: Gemma 4 tool/reasoning parser names are not guessed; add them only after resolving them from the image's parser registry like glm53 does. NOT yet GPU-validated: the preflight verifies every engine flag against the imported image's `vllm serve --help`, but whether vllm-openai 0.32 registers Gemma4ForConditionalGeneration is only known at first cold load (~2 min for 58 GiB) - trust it only after a first READY endpoint and its chat checks."
+}

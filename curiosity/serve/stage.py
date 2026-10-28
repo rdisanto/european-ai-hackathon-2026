@@ -7,7 +7,8 @@ owns the rootless docker and loads/unloads whatever models are wanted, plus runs
 existing router so every loaded model is reached through one token.
 
   stage reserve            submit the single long 8-GPU job (serve/stage_model.sbatch)
-  stage load   <profile>   inside the job: prepare + verify the image + docker run (its own 4-GPU slice)
+  stage load   <profile>   inside the job: prepare + verify the image + docker run (a GPU
+                           slice sized by the profile's declared affinity, e.g. glm53 = 4)
   stage unload <profile>   stop that container and free its GPUs
   stage status             loaded models, router address, reservation state
 
@@ -41,7 +42,8 @@ import router
 
 STAGE_PORT = 18500     # embedded router listens here inside the node
 API_PORT_BASE = 30200  # model API ports are allocated upward from here
-GPU_PER_MODEL = 4      # each stage profile runs TP = gpus_per_node = 4
+GPU_PER_MODEL = 4      # default slice size when no profile affinity is given; real loads
+                       # size their slice from the profile's parallelism (see profile_gpus)
 POLL = 3               # supervisor command/rescan interval, seconds
 
 
@@ -57,15 +59,31 @@ def stage_dir(base):
     return Path(base) / 'stage'
 
 
+def group_open(path, mode):
+    """Best-effort permission fix on team-shared paths.
+
+    Only a file's owner may chmod it: a teammate reaching a stage created by another
+    member would otherwise die with EPERM on a directory that is already readable --
+    the command they came for matters more than re-asserting a mode. Silently skipping
+    keeps every member's CLI usable regardless of who created the path first."""
+    try:
+        Path(path).chmod(mode)
+    except OSError:
+        pass
+
+
 def ensure_dirs(base):
     d = stage_dir(base)
     d.mkdir(parents=True, exist_ok=True)
     for sub in ('cmd', 'done'):
         (d / sub).mkdir(exist_ok=True)
-    # The team shares this stage: any member must be able to drop a command
-    # (cmd/) and read the status. mkdir alone follows the umask, so force it.
+    # The team shares this stage: any member must be able to drop a command (cmd/),
+    # rewrite the state files and read the status. mkdir alone follows the umask (077
+    # under both the CLI and sbatch), so force the modes; the setgid bit makes every
+    # file created inside inherit the TEAM group instead of the creator's primary one,
+    # so group permissions actually mean something across members.
     for path in (d, d / 'cmd', d / 'done'):
-        path.chmod(0o777)
+        group_open(path, 0o2777)
     return d
 
 
@@ -108,16 +126,14 @@ def clear_models(base):
 
 
 def shared_visible(path):
-    """Team-shared stage files must stay readable by every member.
+    """Team-shared stage files must stay READABLE and WRITABLE by every member.
 
     Both the CLI (team.py main: os.umask(0o077)) and the sbatch supervisor inherit
     umask 077, which would leave status.json, models.json, command files and logs at
-    0600 -- a teammate would get "Permission denied" reading the very stage they are
-    supposed to share. The directory itself is 0777; the files follow it."""
-    try:
-        path.chmod(0o644)
-    except OSError:
-        pass
+    0600 -- a teammate would get "Permission denied" touching the very stage they are
+    supposed to share. The directories are 0777+setgid (see ensure_dirs), so files get
+    0664: the team group can rewrite them, the rest of the cluster only reads."""
+    group_open(path, 0o664)
 
 
 def load_models(base):
@@ -139,25 +155,55 @@ def save_models(base, records):
 def write_status(base, port, records, loading=None):
     """status.json: supervisor liveness + loaded models + the load currently in progress.
 
+    Every GPU slice the stage owns is referenced here: each loaded model carries its
+    slice + api_port, and the load in progress carries its claimed slice BEFORE its
+    container starts (models.json only gains the record once /health passes, so the
+    claim is the only reference to those GPUs during the cold load, and after a
+    supervisor crash -- see reclaim_claims). Without it a second load could be handed
+    GPUs that a starting or orphaned container already holds.
+
     owner and job_id make the stage visible to the rest of the team: teammates cannot
     see each other's jobs with `squeue -u $USER`, so the reserving member records both
     here and the CLI queries Slurm from their account instead."""
     p = stage_dir(base) / 'status.json'
     save(p, {'updated': time.time(), 'supervisor': 'running', 'router_port': port,
-             'node': os.uname().nodename, 'models': {k: v['served_model'] for k, v in records.items()},
+             'node': os.uname().nodename,
+             'models': {k: {'served_model': v['served_model'], 'slice': v.get('slice'),
+                            'gpus': v.get('gpus'), 'api_port': v.get('api_port')}
+                        for k, v in records.items()},
              'loading': loading, 'owner': getpass.getuser(), 'job_id': os.environ.get('SLURM_JOB_ID')})
     shared_visible(p)
 
 
 
-def free_gpu_slice(records):
-    """First 4-GPU block not claimed by a loaded model, or None (stage is full)."""
+def profile_gpus(p):
+    """GPU affinity a profile declares for itself: its parallelism footprint TP x PP x DP.
+
+    glm53 is tensor=4/pipeline=1/data=1 -> it must land on a 4-GPU slice; a TP=1 profile
+    (gemma4) takes a single GPU instead of reserving a whole block. profile_check has
+    already normalised data and validated the product against resources, and the stage
+    runs the whole parallelism inside ONE container, so the product is exactly the
+    container's visible-GPU count (CUDA_VISIBLE_DEVICES size)."""
+    par = p['parallelism']
+    return par['tensor'] * par['pipeline'] * par.get('data', 1)  # same default as profile_check
+
+
+def free_gpu_slice(records, loading=None, size=GPU_PER_MODEL):
+    """First aligned GPU block of `size` not claimed, or None (stage cannot host it).
+
+    Blocks align on multiples of `size` so slices stay contiguous and reusable: with 8
+    GPUs, a 4-GPU model on 0-3 leaves 4-7 for another 4-GPU model, and a 2-GPU one can
+    take 4-5. `loading` is the pending claim from status.json: its container is (or was)
+    already pinned to that slice even though records/models.json only gain the entry
+    once /health passes. Ignoring it would hand the same GPUs to a second load."""
     used = set()
     for rec in records.values():
         used |= set(int(g) for g in rec['slice'].split(','))
-    total = max(int(os.environ.get('STAGE_GPUS', '8')) // GPU_PER_MODEL, 1)
-    for i in range(total):
-        block = list(range(i * GPU_PER_MODEL, (i + 1) * GPU_PER_MODEL))
+    if loading and loading.get('slice'):
+        used |= set(int(g) for g in loading['slice'].split(','))
+    total = int(os.environ.get('STAGE_GPUS', '8'))
+    for start in range(0, total - size + 1, size):
+        block = list(range(start, start + size))
         if not any(g in used for g in block):
             return ','.join(map(str, block))
     return None
@@ -188,16 +234,27 @@ def load_model(base, profile_name, records, router_port=None):
     p = cfg['profile']
     name = 'stage-{}'.format(p['id'])
     subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    slice_ = free_gpu_slice(records)
+    # A pending claim in status.json (a load that never reached models.json, or one whose
+    # supervisor died mid-flight) still owns its GPUs: never hand that slice out again.
+    prior = load_status(base) or {}
+    # The profile declares its own GPU affinity (parallelism footprint, e.g. glm53 = 4 GPUs):
+    # the slice is sized to fit it, never a fixed block.
+    gpus = profile_gpus(p)
+    slice_ = free_gpu_slice(records, prior.get('loading'), gpus)
     if slice_ is None:
-        raise RuntimeError('no free 4-GPU slice (stage already hosts {} model(s))'.format(len(records)))
+        raise RuntimeError('no free {}-GPU slice for {} (stage hosts {} model(s), {} GPU(s) total)'.format(
+            gpus, p['id'], len(records), os.environ.get('STAGE_GPUS', '8')))
     api_port = free_api_port(records)
     started_at = time.time()
-    loading = {'profile': profile_name, 'slice': slice_, 'api_port': api_port, 'started': started_at}
-    if router_port is not None:
-        write_status(base, router_port, records,
-                     dict(loading, phase='preflight',
-                          detail='image pull + verification des flags (a froid)'))
+    # Claim the slice in status.json BEFORE the container starts: models.json only gains the
+    # record once /health passes, so during the (long) cold load this claim is the ONLY
+    # reference pinning those GPUs. 'name' lets reclaim_claims free them after a crash.
+    loading = {'profile': profile_name, 'name': name, 'slice': slice_, 'gpus': gpus,
+               'api_port': api_port, 'started': started_at}
+    status_port = router_port if router_port is not None else (prior.get('router_port') or STAGE_PORT)
+    write_status(base, status_port, records,
+                 dict(loading, phase='preflight',
+                      detail='image pull + verification des flags (a froid)'))
     print('STAGE_LOAD_START {} slice {} port {} :: {}'.format(p['id'], slice_, api_port, name), flush=True)
     # node._ROOT must be the run directory: that is where the fresh API key lives.
     saved_root, node.ROOT = node.ROOT, run
@@ -216,9 +273,8 @@ def load_model(base, profile_name, records, router_port=None):
                 os.environ['CUDA_VISIBLE_DEVICES'] = saved
     finally:
         node.ROOT = saved_root
-    if router_port is not None:
-        write_status(base, router_port, records,
-                     dict(loading, phase='engine', detail='vllm serve demarre (cold load des poids)'))
+    write_status(base, status_port, records,
+                 dict(loading, phase='engine', detail='vllm serve demarre (cold load des poids)'))
     print('STAGE_LOAD {} slice {} port {} :: {}'.format(
         p['id'], slice_, api_port,
         ' '.join(shlex.quote(a) for a in
@@ -233,9 +289,9 @@ def load_model(base, profile_name, records, router_port=None):
         if request_healthy(api_port):
             break
         elapsed = time.monotonic() - start
-        if router_port is not None and elapsed - last_beat >= 30:
+        if elapsed - last_beat >= 30:
             last_beat = elapsed
-            write_status(base, router_port, records,
+            write_status(base, status_port, records,
                          dict(loading, phase='engine',
                               detail='attente /health - cold load ({:.0f}s)'.format(elapsed)))
         time.sleep(5)
@@ -248,9 +304,13 @@ def load_model(base, profile_name, records, router_port=None):
                 'ready_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
                 'note': 'stage-managed within the single reservation'}
     save(run / '.runtime/endpoint.json', endpoint)
-    records[p['id']] = {'name': name, 'api_port': api_port, 'slice': slice_,
+    records[p['id']] = {'name': name, 'api_port': api_port, 'slice': slice_, 'gpus': gpus,
                         'served_model': p['served_model'], 'run': str(run)}
     save_models(base, records)
+    # Finalise the reference now: the claim is done, the model owns its slice in models.json
+    # AND status.json. Waiting for the next supervisor poll would leave a window where a
+    # concurrent `stage load` sees the slice claimed by a container /health already accepted.
+    write_status(base, status_port, records, None)
     print('STAGE_READY_MODEL {} {} slice {} port {}'.format(p['id'], p['served_model'], slice_, api_port), flush=True)
     return records
 
@@ -269,6 +329,29 @@ def unload_model(base, profile_name, records):
     save_models(base, records)
     print('STAGE_UNLOAD {}'.format(profile_name), flush=True)
     return records
+
+
+def reclaim_claims(base, records, log):
+    """Free the GPU slice claimed by a load that died with the previous supervisor.
+
+    A load pins its slice in status.json ('loading') BEFORE docker run and only lands
+    in models.json once /health passes. If the supervisor was killed in between, the
+    container survives it inside the rootless docker daemon and still owns those GPUs:
+    removing it here frees the slice before this supervisor hands slices out again.
+    A claim matching an already-recorded model is not a dead load, just an unclean
+    shutdown: sweep() judges that one by /health, so this leaves it alone."""
+    loading = (load_status(base) or {}).get('loading')
+    if not loading or not loading.get('slice'):
+        return
+    if any(rec.get('slice') == loading['slice'] for rec in records.values()):
+        return
+    name = loading.get('name') or 'stage-{}'.format(loading.get('profile', '?'))
+    try:
+        subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:  # docker not up yet: the containers died with the daemon, nothing to free
+        return
+    log.write('reclaimed slice {} of dead load {} ({})\n'.format(loading['slice'], loading.get('profile'), name))
+    log.flush()
 
 
 def sweep(base, records, log):
@@ -336,6 +419,7 @@ def serve(args):
     for path in d.glob('*.out'):
         shared_visible(path)
     records = load_models(base)
+    reclaim_claims(base, records, log)  # free slices still pinned by a load that died mid-flight
     port, router_child = start_router(base, site, log)
     write_status(base, port, records)
     print('STAGE_SERVE ready; router 0.0.0.0:{} ; commands in {}'.format(port, d / 'cmd'), flush=True)

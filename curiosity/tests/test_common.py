@@ -112,10 +112,12 @@ class Framework(unittest.TestCase):
     def test_private_pinned_runs_and_runtime_reuse(self):
         runs = [self.prepare(name) for name in MODELS]
         configs = [inference.load(p / 'RUN_CONFIG.json') for p in runs]
-        backport = [c for c in configs if c['profile']['runtime'] == 'vllm-backport-sm80-0.13.1']
-        self.assertEqual(backport[0]['sif'], backport[1]['sif'])
-        self.assertEqual(backport[0]['overlay'], backport[1]['overlay'])
-        self.assertNotEqual(backport[0]['cache_path'], backport[1]['cache_path'])
+        # Every profile left on the stage shares the one docker runtime: the same
+        # pinned image, but a private run dir and cache per profile.
+        shared = [c for c in configs if c['profile']['runtime'] == 'vllm-openai-docker-0.32']
+        self.assertEqual(len(shared), len(MODELS))
+        self.assertEqual({c['image'] for c in shared}, {shared[0]['image']})
+        self.assertEqual(len({c['cache_path'] for c in shared}), len(shared))
         keys = [(p / '.runtime/api_key').read_text() for p in runs]
         self.assertNotEqual(keys[0], keys[1])
         self.assertEqual(len(set(keys)), len(MODELS))
@@ -126,25 +128,6 @@ class Framework(unittest.TestCase):
             for name, digest in inference.load(run / 'RELEASE_MANIFEST.json')['files'].items():
                 self.assertEqual(hashlib.sha256((run / name).read_bytes()).hexdigest(), digest)
 
-    def test_deepseek16_preparation_checks_patch_and_keeps_the_old_identity(self):
-        old = inference.load(self.prepare('deepseek41') / 'RUN_CONFIG.json')
-        new = inference.load(self.prepare('deepseek41-16gpu') / 'RUN_CONFIG.json')
-        self.assertEqual(old['model_path'], new['model_path'])
-        self.assertNotEqual(old['runtime_path'], new['runtime_path'])
-        self.assertNotEqual(old['cache_path'], new['cache_path'])
-        self.assertNotEqual(old['profile']['served_model'], new['profile']['served_model'])
-        command = inference.submit_command(new)
-        self.assertIn('--nodes=4', command)
-        self.assertIn('--gres=gpu:4', command)
-        engine = node.engine_command(new, 0, 'head', 29001, 31001)
-        self.assertEqual(engine[engine.index('--tensor-parallel-size') + 1], '8')
-        self.assertEqual(engine[engine.index('--pipeline-parallel-size') + 1], '2')
-        self.assertEqual(engine[engine.index('--engram-config') + 1], '{"cpu_offload":false}')
-        (Path(new['overlay']) / 'pp_kv_guard.py').write_text('# tampered patch\n')
-        result = subprocess.run([sys.executable, str(RELEASE / 'inference.py'), 'prepare', 'deepseek41-16gpu', '--base', str(self.base)],
-                                env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn(b'Runtime patch checksum mismatch', result.stderr)
     def test_reject_bad_profiles_and_missing_assets(self):
         p = inference.load(RELEASE / 'profiles/glm53.json')
         for edit in ({'id': '../escape'}, {'engine_args': ['--api-key=secret']}, {'hooks': ['arbitrary_script']}):
@@ -154,8 +137,8 @@ class Framework(unittest.TestCase):
                 inference.profile_check(obj)
         # resources are now optional (stage/B300 profiles like glm53 omit them), so the
         # TP-mismatch check must run against a profile that still pins nodes x gpus_per_node.
-        q = inference.load(RELEASE / 'profiles/deepseek41.json')
-        q['parallelism']['tensor'] = 16  # exceeds deepseek41's 2 nodes x 4 GPUs
+        q = inference.load(RELEASE / 'profiles/qwen38flash.json')
+        q['parallelism']['tensor'] = 16  # exceeds qwen38flash's 1 node x 1 GPU
         with self.assertRaises(ValueError):
             inference.profile_check(q)
         (self.base / 'checkpoints/glm53/shard-0.safetensors').unlink()
@@ -164,11 +147,11 @@ class Framework(unittest.TestCase):
         self.assertFalse(self.runs.exists() and list(self.runs.iterdir()))
 
     def test_submission_is_explicit_and_cannot_repeat(self):
-        run = self.prepare('deepseek41')
+        run = self.prepare('qwen38flash')
         args = [sys.executable, str(run / 'inference.py'), 'submit']
         dry = subprocess.check_output(args + ['--dry-run'], cwd=str(run), env=self.env, stderr=subprocess.PIPE).decode()
         command = shlex.split(dry)
-        for flag in ('--nodes=2', '--gres=gpu:4', '--mem=480GB', '--time=02:00:00', '--signal=B:TERM@90'):
+        for flag in ('--nodes=1', '--gres=gpu:1', '--mem=120GB', '--time=7-00:00:00', '--signal=B:TERM@90'):
             self.assertIn(flag, command)
         self.assertFalse((run / '.runtime/job_id').exists())
         subprocess.check_output(args, cwd=str(run), env=self.env, stderr=subprocess.PIPE)
@@ -177,7 +160,7 @@ class Framework(unittest.TestCase):
         self.assertNotEqual(second.returncode, 0)
 
     def test_model_settings_survive_refactor(self):
-        settings = [('glm53', '4', '1', []), ('deepseek41', '8', '1', ['deepseek_v41'])]
+        settings = [('glm53', '4', '1', []), ('qwen38flash', '1', '1', []), ('gemma4', '1', '1', [])]
         if 'qwen235b' in MODELS:
             settings.append(('qwen235b', '4', '2', ['qwen3', 'hermes']))
         for model, tp, pp, parsers in settings:
@@ -195,21 +178,13 @@ class Framework(unittest.TestCase):
                 candidates = cfg['profile'].get('parser_candidates', {})
                 self.assertTrue({'glm47', 'glm45'} & set(candidates.get('tool') or []))
                 self.assertTrue({'glm47', 'glm45'} & set(candidates.get('reasoning') or []))
-            if model == 'deepseek41':
-                self.assertIn('{"cpu_offload":true}', command)
-                self.assertIn('--enable-expert-parallel', command)
-                self.assertNotIn('--enable-ep-weight-filter', command)
 
     def test_single_node_profile_and_runtime_without_overlay(self):
-        cfg = inference.load(self.prepare('qwen06b') / 'RUN_CONFIG.json')
+        cfg = inference.load(self.prepare('gemma4') / 'RUN_CONFIG.json')
         command = node.engine_command(cfg, 0, '10.0.0.1', 29500, 31001)
         for flag in ('--nnodes', '--node-rank', '--master-addr', '--master-port', '--headless'):
             self.assertNotIn(flag, command)
         self.assertEqual(command[-4:], ['--host', '0.0.0.0', '--port', '31001'])
-        # The backport runtime still insists on its TileLang overlay.
-        (self.base / 'runtimes/vllm-backport-sm80-0.13.1/python-overlay/tilelang/__init__.py').unlink()
-        with self.assertRaises(subprocess.CalledProcessError):
-            self.prepare('deepseek41')
 
     def test_docker_launcher_builds_the_b300_recipe(self):
         run = self.prepare('glm53')
@@ -252,8 +227,7 @@ class Framework(unittest.TestCase):
         # and does NOT list --enable-auto-tool-choice in engine_args. The launcher must add it
         # beside --tool-call-parser (diagnostics/glm53_b300_first_run.sh, serve(): non-negotiable
         # pair), or any client request with tool_choice "auto" is rejected with HTTP 400.
-        for model, registry in (('glm53', {'tool': ['glm47', 'glm45'], 'reasoning': ['glm47', 'glm45']}),
-                                ('dsv4flashablit', {'tool': ['deepseek_v4'], 'reasoning': ['deepseek_v4']})):
+        for model, registry in (('glm53', {'tool': ['glm47', 'glm45'], 'reasoning': ['glm47', 'glm45']}),):
             run = self.prepare(model)
             cfg = inference.load(run / 'RUN_CONFIG.json')
             cache = Path(cfg['cache_path'])
@@ -272,14 +246,14 @@ class Framework(unittest.TestCase):
             full = cfg['profile']['engine_args'] + extra
             self.assertIn('--tool-call-parser', full)
             self.assertIn('--enable-auto-tool-choice', full)
-            # Exactly once: either the profile lists it (dsv4flashablit) or the launcher
-            # adds it next to the resolved parser (glm53).
+            # Exactly once: the launcher adds it next to the resolved parser; a
+            # second flag would override the profile's choice.
             self.assertEqual(full.count('--enable-auto-tool-choice'), 1)
 
     def test_docker_install_downloads_checkpoints_on_the_gpu_partition(self):
         self.command('sbatch', '#!/bin/bash\necho "$*" >> "$HOME/sbatch-calls"\nprintf "702\\n"\n')
         self.command('squeue', '#!/bin/bash\nexit 0\n')
-        output = self.team('install', 'glm53', 'dsv4flashablit').stdout.decode()
+        output = self.team('install', 'glm53', 'gemma4').stdout.decode()
         calls = (self.home / 'sbatch-calls').read_text().splitlines()
         self.assertEqual(len(calls), 2, output)
         for call in calls:
@@ -288,7 +262,7 @@ class Framework(unittest.TestCase):
             self.assertNotIn('install/runtime.sbatch', call)
             self.assertNotIn('--dependency', call)
         self.assertTrue(calls[0].endswith('install/docker_checkpoint.sbatch glm53'))
-        self.assertTrue(calls[1].endswith('install/docker_checkpoint.sbatch dsv4flashablit'))
+        self.assertTrue(calls[1].endswith('install/docker_checkpoint.sbatch gemma4'))
         (self.base / 'checkpoints/glm53/download_manifest.json').write_text('{}')
         self.assertIn('checkpoint glm53: installed', self.team('install', 'glm53').stdout.decode())
 
@@ -300,13 +274,13 @@ class Framework(unittest.TestCase):
             self.assertNotEqual(test_endpoint.final_number(answer), 42, answer)
 
     def test_check_suites_and_runtime_catalog_are_enforced(self):
-        p = inference.load(RELEASE / 'profiles/qwen06b.json')
+        p = inference.load(RELEASE / 'profiles/gemma4.json')
         for edit in ({'checks': 'nonsense'}, {'runtime': 'not-in-catalog'}):
             obj = copy.deepcopy(p)
             obj.update(edit)
             with self.assertRaises(ValueError):
                 inference.profile_check(obj)
-        self.assertEqual(len(inference.check_suite(p)), 7)
+        self.assertEqual(inference.check_suite(p), inference.CHECK_SUITES['chat'])
         self.assertNotIn('forced_function_call', inference.CHECK_SUITES['chat'])
 
     def test_registry_claims_one_server_per_name(self):
@@ -338,20 +312,20 @@ class Framework(unittest.TestCase):
 
     def test_up_status_logs_down(self):
         self.command('scancel', '#!/bin/bash\necho "$@" > "$HOME/scancel-args"\n')
-        self.command('squeue', '#!/bin/bash\nprintf "12345|qwen06b-common|RUNNING|1:00|1:00:00|lrdn0001\\n"\n')
-        output = self.team('up', 'qwen06b', '--qos', 'boost_qos_dbg', '--time', '00:30:00').stdout.decode()
+        self.command('squeue', '#!/bin/bash\nprintf "12345|gemma4-common|RUNNING|1:00|1:00:00|lrdn0001\\n"\n')
+        output = self.team('up', 'gemma4', '--qos', 'boost_qos_dbg', '--time', '00:30:00').stdout.decode()
         self.assertIn('Submitted job 12345', output)
         run = Path(output.split('Run directory: ')[1].split()[0])
         self.assertEqual(run.parent, self.runs)  # runs live in $BASE/users/<login>/runs, mode 700
         self.assertEqual(run.parent.parent.stat().st_mode & 0o077, 0)
         report = json.loads(self.team('status', '--json').stdout.decode())
-        self.assertEqual([(s['profile'], s['job_id'], s['ready']) for s in report['servers']], [('qwen06b', '12345', False)])
+        self.assertEqual([(s['profile'], s['job_id'], s['ready']) for s in report['servers']], [('gemma4', '12345', False)])
         self.assertEqual(report['registry'], [])
         self.assertEqual(report['installed']['runtimes'], sorted(inference.catalog()['runtimes']))
-        (run / 'qwen06b-common-12345.out').write_text('line 1\nINFERENCE_READY\n')
-        for target in ('12345', 'qwen06b', 'qwen3-0.6b-curiosity'):
+        (run / 'gemma4-common-12345.out').write_text('line 1\nINFERENCE_READY\n')
+        for target in ('12345', 'gemma4', 'gemma-4'):
             self.assertIn('INFERENCE_READY', self.team('logs', target).stdout.decode())
-        self.team('down', 'qwen3-0.6b-curiosity')
+        self.team('down', 'gemma-4')
         self.assertEqual((self.home / 'scancel-args').read_text().split(), ['12345'])
         self.assertNotEqual(self.team('down', 'glm53', check=False).returncode, 0)
 
@@ -377,7 +351,7 @@ class Framework(unittest.TestCase):
         defaults = [c for c in calls if c.startswith('-d -m ')]
         self.assertTrue(access and defaults)
         everything = ' '.join(access + defaults)
-        self.assertIn(str(self.base / 'checkpoints/qwen06b/config.json'), everything)
+        self.assertIn(str(self.base / 'checkpoints/gemma4/config.json'), everything)
         self.assertIn(str(self.base / 'users') + ' ', ' '.join(access) + ' ')
         self.assertNotIn(str(self.base / 'users') + '/', everything)  # personal folders stay private
         self.assertNotIn('staging/vllm-0.31.0', everything)
@@ -385,23 +359,6 @@ class Framework(unittest.TestCase):
         self.assertIn(str(self.base / 'staging') + ' ', ' '.join(defaults) + ' ')
         self.assertNotIn(' ' + str(self.base / 'users') + ' ', ' ' + ' '.join(defaults) + ' ')
         self.assertIn(b'No such user', self.team('share', 'no-such-login-xyz', check=False).stderr)
-
-    def test_install_submits_only_what_is_missing(self):
-        self.command('sbatch', '#!/bin/bash\necho "$*" >> "$HOME/sbatch-calls"\nn=$(wc -l < "$HOME/sbatch-calls"); printf "%s\\n" "$((700 + n))"\n')
-        self.command('squeue', '#!/bin/bash\nexit 0\n')
-        shutil.rmtree(str(self.base / 'runtimes/vllm-0.31.0'))
-        output = self.team('install', 'qwen06b', 'qwen35').stdout.decode()
-        calls = (self.home / 'sbatch-calls').read_text().splitlines()
-        # qwen235b's runtime is there; no checkpoint has a download manifest in the fixture.
-        self.assertEqual(len(calls), 3, output)
-        self.assertIn('--job-name=install-runtime-vllm-0.31.0', calls[0])
-        self.assertIn('--partition=hackathon', calls[0])  # curiosity's cpu_partition (site.example.json)
-        self.assertTrue(calls[0].endswith('install/runtime.sbatch vllm-0.31.0'))
-        self.assertIn('--dependency=afterok:701', calls[1])  # qwen06b weights wait for its runtime
-        self.assertNotIn('--dependency', calls[2])
-        self.assertIn('CURIOSITY_RELEASE=' + str(REPO), calls[0])
-        (self.base / 'checkpoints/qwen06b/download_manifest.json').write_text('{}')
-        self.assertIn('checkpoint qwen06b: installed', self.team('install', 'qwen06b').stdout.decode())
 
     def test_diagnose_uses_the_right_queue(self):
         self.command('sbatch', '#!/bin/bash\necho "$*" >> "$HOME/sbatch-calls"\nprintf "800\\n"\n')
@@ -416,10 +373,10 @@ class Framework(unittest.TestCase):
     def test_admin_cli_over_ssh(self):
         # A stand-in ssh that runs the remote command locally, as the same (temporary) HOME.
         self.command('ssh', '#!/bin/bash\nwhile [[ "$1" == -* ]]; do [[ "$1" == -[oL] ]] && shift; shift; done\nshift\nexec bash -c "$*"\n')
-        self.command('squeue', '#!/bin/bash\nprintf "12345|qwen06b-common|PENDING|0:00|1:00:00|\\n"\n')
+        self.command('squeue', '#!/bin/bash\nprintf "12345|gemma4-common|PENDING|0:00|1:00:00|\\n"\n')
         self.command('scancel', '#!/bin/bash\necho "$@" > "$HOME/scancel-args"\n')
         cli = [sys.executable, str(REPO / 'cli.py'), '--user', 'tester', '--base', str(self.base)]
-        output = subprocess.check_output(cli + ['up', 'qwen06b', '--qos', 'boost_qos_dbg'], env=self.env).decode()
+        output = subprocess.check_output(cli + ['up', 'gemma4', '--qos', 'boost_qos_dbg'], env=self.env).decode()
         self.assertIn('Submitted job 12345', output)
         releases = list((self.home / '.curiosity-inference/releases').iterdir())
         self.assertEqual(len(releases), 1)
@@ -427,9 +384,9 @@ class Framework(unittest.TestCase):
         for path in ('serve/team.py', 'install/runtime.sbatch', 'diagnostics/probe.sbatch'):
             self.assertTrue((releases[0] / path).is_file(), path)
         output = subprocess.check_output(cli + ['status'], env=self.env).decode()
-        self.assertIn('qwen06b', output)
+        self.assertIn('gemma4', output)
         self.assertIn('starting', output)
-        subprocess.check_call(cli + ['down', 'qwen06b'], env=self.env, stdout=subprocess.DEVNULL)
+        subprocess.check_call(cli + ['down', 'gemma4'], env=self.env, stdout=subprocess.DEVNULL)
         self.assertEqual((self.home / 'scancel-args').read_text().split(), ['12345'])
         token = subprocess.check_output(cli + ['router', 'token'], env=self.env, stderr=subprocess.DEVNULL).decode().strip()
         self.assertGreaterEqual(len(token), 32)

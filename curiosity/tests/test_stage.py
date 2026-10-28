@@ -46,14 +46,14 @@ class Stage(Framework):
             self.assertTrue(ep['stage'])
             self.assertEqual(ep['model'], 'glm-5.3')
             self.assertEqual(ep['gpu_slice'], '0,1,2,3')
-            # A second, differently sized model must take the other free 4-GPU slice.
+            # A second, differently sized model takes a slice of its own size, no overlap.
             with mock.patch.object(node, 'verify_image', return_value=[]), \
                     mock.patch.object(stage, 'request_healthy', return_value=True):
-                records = stage.load_model(str(base), 'dsv4flashablit', records)
+                records = stage.load_model(str(base), 'qwen38flash', records)
             self.assertEqual(records['glm53']['slice'], '0,1,2,3')
-            self.assertEqual(records['dsv4flashablit']['slice'], '4,5,6,7')
-            self.assertEqual(records['dsv4flashablit']['api_port'], stage.API_PORT_BASE + 10)
-            # A third model has no free 4-GPU slice on an 8-GPU node.
+            self.assertEqual(records['qwen38flash']['slice'], '4')
+            self.assertEqual(records['qwen38flash']['api_port'], stage.API_PORT_BASE + 10)
+            # With 0-4 busy no aligned 4-GPU block is free on the 8-GPU node.
             self.assertIsNone(stage.free_gpu_slice(records))
             # Unload removes the container record and the endpoint, freeing the slice.
             stage.unload_model(str(base), 'glm53', records)
@@ -61,6 +61,127 @@ class Stage(Framework):
             self.assertIsNotNone(stage.free_gpu_slice(records))
         finally:
             pass
+
+    def test_status_json_references_the_gpu_slices_so_loads_cannot_overlap(self):
+        # status.json must reference every slice the stage owns: the load in progress
+        # claims its slice BEFORE the container starts (models.json only gains the
+        # record once /health passes) and loaded models keep theirs. Without the
+        # reference a second load could be handed GPUs a container already holds.
+        self.docker_stub()
+        saved_path = os.environ['PATH']
+        os.environ['PATH'] = str(self.bin) + ':' + saved_path
+        self.addCleanup(lambda: os.environ.__setitem__('PATH', saved_path))
+        base = self.base
+        claimed = {}
+
+        def probe(cfg):  # runs during preflight: the claim must already be on disk
+            claimed.update(inference.load(stage.stage_dir(base) / 'status.json'))
+            return []
+
+        with mock.patch.object(node, 'verify_image', side_effect=probe), \
+                mock.patch.object(stage, 'request_healthy', return_value=True):
+            stage.load_model(str(base), 'glm53', {})
+        # 1. the pending claim pinned its slice and container name before docker run
+        self.assertEqual(claimed['loading']['slice'], '0,1,2,3')
+        self.assertEqual(claimed['loading']['name'], 'stage-glm53')
+        # 2. the loaded model keeps its slice + port referenced in status.json
+        status = inference.load(stage.stage_dir(base) / 'status.json')
+        self.assertEqual(status['models']['glm53']['slice'], '0,1,2,3')
+        self.assertEqual(status['models']['glm53']['api_port'], stage.API_PORT_BASE)
+        # 3. a pending claim reserves its slice: free_gpu_slice must not hand it out twice
+        self.assertEqual(stage.free_gpu_slice({}, {'slice': '0,1,2,3'}), '4,5,6,7')
+        # 4. a stale claim (supervisor died mid-load, record never reached models.json):
+        #    the next load must skip that slice instead of overlapping it.
+        inference.save(stage.stage_dir(base) / 'models.json', {})
+        inference.save(stage.stage_dir(base) / 'status.json',
+                       dict(status, models={}, loading={'profile': 'glm53', 'name': 'stage-glm53',
+                                                         'slice': '0,1,2,3'}))
+        with mock.patch.object(node, 'verify_image', return_value=[]), \
+                mock.patch.object(stage, 'request_healthy', return_value=True):
+            records = stage.load_model(str(base), 'glm53', {})
+        self.assertEqual(records['glm53']['slice'], '4,5,6,7')
+
+    def test_stage_dirs_and_files_stay_group_usable_across_members(self):
+        # A stage created by one member must be fully usable by the others. Two classic
+        # breakages: directories without setgid (new files inherit the CREATOR's primary
+        # group, not the team group) and shared files at 0644 (teammates can read but
+        # never rewrite status/models). And a chmod on another member's path raises
+        # EPERM -- commands must survive that, not crash on it.
+        import stat as stat_mod
+        d = stage.ensure_dirs(str(self.base))
+        for sub in ('', 'cmd', 'done'):
+            self.assertTrue(os.stat(d / sub).st_mode & stat_mod.S_ISGID,
+                            'setgid missing on {}'.format(sub))
+        stage.write_status(str(self.base), 18500, {}, None)
+        self.assertEqual(os.stat(d / 'status.json').st_mode & 0o777, 0o664)
+        stage.save_models(str(self.base), {})
+        self.assertEqual(os.stat(d / 'models.json').st_mode & 0o777, 0o664)
+        with mock.patch.object(Path, 'chmod', side_effect=PermissionError):
+            # simulate a stage owned by ANOTHER member: same commands must not die
+            stage.ensure_dirs(str(self.base))
+            stage.write_status(str(self.base), 18500, {}, None)
+
+    def test_profile_gpu_affinity_sizes_the_slice(self):
+        # Each profile declares its GPU affinity through parallelism (TP x PP x DP):
+        # glm53 = 4 GPUs gets a 4-GPU slice, gemma4 = 1 GPU gets ONE gpu, and blocks
+        # stay aligned so a freed 4-GPU block remains usable by the next 4-GPU profile.
+        self.docker_stub()
+        saved_path = os.environ['PATH']
+        os.environ['PATH'] = str(self.bin) + ':' + saved_path
+        self.addCleanup(lambda: os.environ.__setitem__('PATH', saved_path))
+        base = self.base
+        with mock.patch.object(node, 'verify_image', return_value=[]), \
+                mock.patch.object(stage, 'request_healthy', return_value=True):
+            records = stage.load_model(str(base), 'glm53', {})
+            self.assertEqual(records['glm53']['slice'], '0,1,2,3')
+            self.assertEqual(records['glm53']['gpus'], 4)
+            records = stage.load_model(str(base), 'gemma4', records)
+        self.assertEqual(records['gemma4']['slice'], '4')  # its own 1-GPU block, no overlap
+        self.assertEqual(records['gemma4']['gpus'], 1)
+        self.assertEqual(stage.profile_gpus(inference.load(RELEASE / 'profiles' / 'qwen38flash.json')), 1)
+        self.assertEqual(stage.profile_gpus(inference.load(RELEASE / 'profiles' / 'glm53.json')), 4)
+        # status.json references the affinity + slice of every loaded model, and the
+        # finished claim is cleared (no stale pinning once the record exists).
+        status = inference.load(stage.stage_dir(base) / 'status.json')
+        self.assertEqual(status['models']['glm53']['gpus'], 4)
+        self.assertEqual(status['models']['glm53']['slice'], '0,1,2,3')
+        self.assertEqual(status['models']['gemma4']['gpus'], 1)
+        self.assertIsNone(status['loading'])
+        # Mixed affinities stay coherent: with 0-4 busy, a 2-GPU profile gets 6-7 and a
+        # 1-GPU one the first free gpu, never an overlapping block.
+        self.assertEqual(stage.free_gpu_slice(records, None, 2), '6,7')
+        self.assertEqual(stage.free_gpu_slice(records, None, 1), '5')
+        # the last free gpus can be taken by a pending claim: then the stage is full
+        self.assertEqual(stage.free_gpu_slice(records, {'slice': '5,6'}, 1), '7')
+        self.assertIsNone(stage.free_gpu_slice(records, {'slice': '5,6,7'}, 1))
+        # After an unload, the freed 4-GPU block stays whole for the next big profile.
+        stage.unload_model(str(base), 'glm53', records)
+        self.assertEqual(stage.free_gpu_slice(stage.load_models(str(base)), None, 4), '0,1,2,3')
+
+    def test_reclaim_claims_frees_the_slice_of_a_dead_load(self):
+        # A container that outlived the supervisor still owns its GPUs: stage startup
+        # must docker rm -f the claimed container so the slice can be handed out again.
+        import subprocess
+        base = self.base
+        d = stage.ensure_dirs(base)
+        inference.save(d / 'status.json', {'supervisor': 'running', 'router_port': stage.STAGE_PORT,
+                                           'loading': {'profile': 'glm53', 'name': 'stage-glm53',
+                                                       'slice': '0,1,2,3'}})
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append(list(argv))
+            return subprocess.CompletedProcess(argv, 0)
+        with mock.patch.object(stage.subprocess, 'run', side_effect=fake_run):
+            stage.reclaim_claims(base, {}, (d / 'test.log').open('a'))
+        self.assertEqual(calls, [['docker', 'rm', '-f', 'stage-glm53']])
+        # A claim matching an already-recorded model is an unclean shutdown, not a dead
+        # load: sweep() judges that one by /health, reclaim must not touch it.
+        calls[:] = []
+        with mock.patch.object(stage.subprocess, 'run', side_effect=fake_run):
+            stage.reclaim_claims(base, {'glm53': {'name': 'stage-glm53', 'slice': '0,1,2,3'}},
+                                 (d / 'test.log').open('a'))
+        self.assertEqual(calls, [])
 
     def test_status_json_exposes_router_endpoint(self):
         base = self.base
@@ -97,7 +218,7 @@ class Stage(Framework):
         self.assertEqual(replaced.returncode, 0, replaced.stderr)
         calls = (self.home / 'sbatch-calls').read_text().splitlines()
         self.assertEqual(len(calls), 1)
-        self.assertIn('--gres=gpu:6', calls[0])
+        self.assertIn('--gres=gpu:8', calls[0])
         sc = (self.home / 'scancel-args').read_text()
         self.assertIn('--name=stage', sc)   # --restart cancels by job name (as router down does)
         self.assertIn('--user=', sc)
@@ -112,7 +233,7 @@ class Stage(Framework):
         cmds = list((d / 'cmd').glob('*.cmd'))
         self.assertEqual(len(cmds), 1, out)
         cmd_mode = cmds[0].stat().st_mode & 0o777
-        self.assertEqual(cmd_mode, 0o644, oct(cmd_mode))  # CLI umask 077: readable by the shared supervisor
+        self.assertEqual(cmd_mode, 0o664, oct(cmd_mode))  # CLI umask 077: the shared supervisor (and any teammate) must read AND rewrite it
         self.assertEqual(json.loads(cmds[0].read_text()), {'action': 'load', 'profile': 'glm53'})
         self.assertIn(b'Queued load glm53', out)
 
@@ -170,7 +291,7 @@ class Stage(Framework):
         owner_token.write_text('owner-secret-token\n')
         self.assertTrue(stage.share_router_token(base))
         self.assertEqual(shared.read_text().strip(), 'owner-secret-token')
-        self.assertEqual(shared.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(shared.stat().st_mode & 0o777, 0o664)
 
 
 if __name__ == '__main__':

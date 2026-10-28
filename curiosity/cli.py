@@ -13,8 +13,8 @@ Settings (environment variables or options before the command):
 
 Typical first run, from the repository root:
   ./curiosity/cli.py init --account <Slurm project account>
-  ./curiosity/cli.py install qwen06b
-  ./curiosity/cli.py up qwen06b --qos boost_qos_dbg --time 00:30:00
+  ./curiosity/cli.py install gemma4
+  ./curiosity/cli.py up gemma4 --qos boost_qos_dbg --time 00:30:00
   ./curiosity/cli.py router up && ./curiosity/cli.py forward
 
 Run ./curiosity/cli.py <command> --help for each command's options and the files it runs.
@@ -76,10 +76,10 @@ COMMANDS = {
     'diagnose': ('submit a check job: probe (GPU node), reach (CPU queue -> GPU node, internet), nccl',
                  'serve/team.py diagnose -> diagnostics/probe.sbatch, diagnostics/reach.sbatch or\n'
                  'diagnostics/nccl_check.sbatch (with nccl_task.sh and nccl_check.py). Logs: users/<login>/logs/.'),
-    'stage': ('one long 6-GPU B300 reservation shared by the whole team: load/unload models + the router inside',
-              'serve/team.py stage reserve -> serve/stage_model.sbatch (1 node / 6 B300, long wall-clock), which runs\\n'
+    'stage': ('one long 8-GPU B300 reservation shared by the whole team: load/unload models + the router inside',
+              'serve/team.py stage reserve -> serve/stage_model.sbatch (1 node / 8 B300, long wall-clock), which runs\\n'
               'serve/stage.py serve: owns the rootless docker (diagnostic recipe) and loads/unloads the requested\\n'
-              'models on their own 4-GPU slices while running the reused router (router.py serve). The stage is\\n'
+              'models on GPU slices sized by each profile parallelism (glm53 takes 4, single-GPU profiles 1) while running the reused router (router.py serve). The stage is\\n'
               'team-shared: its status lives in $BASE/stage (any member can load/unload and read it; the status\\n'
               'carries the owner; reserve reattaches to a running stage instead of submitting a second one; down\\n'
               'is the owner\'s prerogative). Forward reaches the stage router over SSH like the normal router.'),
@@ -191,10 +191,10 @@ def parser():
     p.add_argument('logins', nargs='+', metavar='LOGIN', help='CINECA logins of your teammates')
     p.add_argument('--revoke', action='store_true', help='remove their access instead')
     p = command('install')
-    p.add_argument('profiles', nargs='*', metavar='PROFILE', help='profiles from curiosity/serve/profiles/, e.g. qwen06b')
+    p.add_argument('profiles', nargs='*', metavar='PROFILE', help='profiles from curiosity/serve/profiles/, e.g. gemma4')
     p.add_argument('--link-client', action='store_true', help='also the chisel client for the cluster link')
     p = command('up')
-    p.add_argument('profile', help='a profile from curiosity/serve/profiles/, e.g. qwen235b')
+    p.add_argument('profile', help='a profile from curiosity/serve/profiles/, e.g. gemma4')
     p.add_argument('--qos', help='e.g. boost_qos_dbg: starts sooner, at most 30 minutes')
     p.add_argument('--time', help='time limit, e.g. 00:30:00 (default: the profile\'s)')
     p.add_argument('--reservation', help='Slurm reservation on workshop days')
@@ -221,7 +221,7 @@ def parser():
     p.add_argument('--runtime', help='nccl: installed runtime to test (default vllm-0.31.0)')
     p = command('stage')
     stage_sub = p.add_subparsers(dest='stage_action', required=True)
-    r = stage_sub.add_parser('reserve', help='submit the single long 1-node/6-GPU job')
+    r = stage_sub.add_parser('reserve', help='submit the single long 1-node/8-GPU job')
     r.add_argument('--time', help='wall clock, e.g. 10:00:00 (default 11:00:00)')
     r.add_argument('--qos')
     r.add_argument('--reservation')
