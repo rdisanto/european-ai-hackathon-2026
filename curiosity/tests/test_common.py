@@ -269,10 +269,12 @@ class Framework(unittest.TestCase):
                 extra = node.verify_image(cfg)
             finally:
                 os.environ['PATH'] = saved_path
-            self.assertIn('--tool-call-parser', extra)
-            self.assertIn('--enable-auto-tool-choice', extra)
-            # Exactly once, whether the profile listed it (dsv4flashablit) or not (glm53).
-            self.assertEqual(extra.count('--enable-auto-tool-choice'), 1)
+            full = cfg['profile']['engine_args'] + extra
+            self.assertIn('--tool-call-parser', full)
+            self.assertIn('--enable-auto-tool-choice', full)
+            # Exactly once: either the profile lists it (dsv4flashablit) or the launcher
+            # adds it next to the resolved parser (glm53).
+            self.assertEqual(full.count('--enable-auto-tool-choice'), 1)
 
     def test_docker_install_downloads_checkpoints_on_the_gpu_partition(self):
         self.command('sbatch', '#!/bin/bash\necho "$*" >> "$HOME/sbatch-calls"\nprintf "702\\n"\n')

@@ -100,6 +100,10 @@ def clear_models(base):
     p = stage_dir(base) / 'models.json'
     if p.exists():
         p.unlink()
+    # The stage router died with the node: its shared token is no longer valid.
+    token = stage_dir(base) / 'router_token'
+    if token.exists():
+        token.unlink()
     return len(records)
 
 
@@ -283,6 +287,20 @@ def sweep(base, records, log):
     return records
 
 
+def share_router_token(base):
+    """Copy the owner's router token into the team-shared stage folder (router.py
+    shared_token_path). The stage router only exists inside the reservation, so its token
+    must be readable by every member: `cli.py router token` prefers it over any
+    per-account token. Without an owner token (fresh fallback cases) nothing is written."""
+    source = inference.user_dir(Path(base)) / 'router_token'
+    if not source.is_file():
+        return False
+    target = stage_dir(base) / 'router_token'
+    target.write_text(source.read_text())
+    shared_visible(target)
+    return True
+
+
 def start_router(base, site, log):
     """Prepare the router directory and spawn router.py serve inside the reservation."""
     try:
@@ -294,6 +312,9 @@ def start_router(base, site, log):
         fallback = stage_dir(base) / 'router'
         cfg = load(fallback / 'ROUTER.json') if (fallback / 'ROUTER.json').exists() else {'directory': str(fallback)}
         directory = Path(cfg.get('directory', str(fallback)))
+    if share_router_token(base):
+        log.write('router token shared with the team at {}\n'.format(stage_dir(base) / 'router_token'))
+        log.flush()
     port = int(os.environ.get('ROUTER_PORT') or STAGE_PORT)
     env = dict(os.environ, ROUTER_PORT=str(port))
     child = subprocess.Popen([sys.executable, str(directory / 'router.py'), 'serve'],

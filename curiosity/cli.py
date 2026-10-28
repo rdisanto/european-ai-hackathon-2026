@@ -66,7 +66,10 @@ COMMANDS = {
     'router': ('start or stop your router, print its token, or store the cluster link password',
                'serve/team.py router -> serve/router.py: copies the code to users/<login>/router/ and submits\n'
                'serve/router.sbatch on the CPU queue; the job runs serve/router.py serve (the HTTP router, and\n'
-               'the chisel client if the cluster link is enabled) and queues its successor (router.py next).'),
+               'the chisel client if the cluster link is enabled) and queues its successor (router.py next).\n'
+               'With a stage reserved, `router token` prints the STAGE router token instead (team-shared at\n'
+               '$BASE/stage/router_token: every member gets the one token the running router verifies; the\n'
+               'per-account router stays as the non-stage fallback, see cli.py stage forward).'),
     'forward': ('forward a port on this laptop to your router (an SSH port forward)',
                 'Only reads serve/team.py status. Then runs ssh -N -L 127.0.0.1:<port>:<router node>:<router port>\n'
                 'through the login node, so http://127.0.0.1:<port>/v1 on this laptop reaches your router.'),

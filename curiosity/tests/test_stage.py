@@ -149,6 +149,29 @@ class Stage(Framework):
         self.assertNotEqual(down.returncode, 0)
         self.assertIn(b'alice', down.stderr)
 
+    def test_stage_router_token_is_shared_with_the_team(self):
+        base = self.base
+        import subprocess as sp
+        d = stage.ensure_dirs(base)
+        # First: a shared token alone (no per-account file) -- `router token` prints it
+        # and does not fabricate a per-account token for the caller.
+        shared = d / 'router_token'
+        shared.write_text('team-secret-token\n')
+        os.chmod(str(shared), 0o644)
+        out = sp.check_output([sys.executable, str(RELEASE / 'team.py'), 'router', 'token',
+                               '--base', str(base)], env=self.env, stderr=sp.PIPE)
+        self.assertEqual(out.decode().strip(), 'team-secret-token')
+        self.assertFalse((inference.user_dir(base) / 'router_token').exists(),
+                         'ensure must not create a per-account token while the stage shares one')
+        # Then: the supervisor copies the owner's token into the shared folder (0644).
+        shared.unlink()
+        owner_token = inference.user_dir(base) / 'router_token'
+        owner_token.parent.mkdir(parents=True, exist_ok=True)
+        owner_token.write_text('owner-secret-token\n')
+        self.assertTrue(stage.share_router_token(base))
+        self.assertEqual(shared.read_text().strip(), 'owner-secret-token')
+        self.assertEqual(shared.stat().st_mode & 0o777, 0o644)
+
 
 if __name__ == '__main__':
     unittest.main()

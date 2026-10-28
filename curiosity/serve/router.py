@@ -53,6 +53,17 @@ def paths(base):
     return {'directory': mine / 'router', 'token': mine / 'router_token', 'link_auth': mine / 'link_auth'}
 
 
+def shared_token_path(base):
+    """The stage router's token, shared with the whole team at $BASE/stage/router_token.
+
+    The stage is one reservation for the team and carries the only router that matters
+    (individual routers are the non-stage fallback). The supervisor copies the token it
+    generates into the team-shared stage folder (0644) so any member can read it; this
+    file is deliberately NOT read through read_private, which requires per-account
+    ownership."""
+    return Path(base) / 'stage' / 'router_token'
+
+
 def write_private(path, text):
     inference.private_dir(path.parent)
     temporary = path.with_name('.' + path.name + '.tmp')
@@ -70,7 +81,13 @@ def read_private(path):
 
 
 def token(base, action):
-    """ensure: create if missing; set: replace from stdin; show: print."""
+    """ensure: create if missing; set: replace from stdin; show: print.
+
+    When the stage is reserved, its router token is team-shared at shared_token_path():
+    'show' prints that token and 'ensure' does not fabricate a per-account one, so a
+    teammate gets the exact token the running stage router verifies. Without a stage,
+    the per-account token keeps working as the fallback."""
+    shared = shared_token_path(base)
     path = paths(base)['token']
     inference.private_dir(path.parent)
     if action == 'set':
@@ -80,11 +97,17 @@ def token(base, action):
         write_private(path, value + '\n')
         print('Router token replaced. A running router keeps the old one until restarted.', file=sys.stderr)
     elif action == 'ensure':
+        if shared.exists():
+            return  # the stage router token is already shared with the team
         if not path.exists():
             write_private(path, secrets.token_urlsafe(32) + '\n')
             print('Created a new router token in ' + str(path), file=sys.stderr)
     else:
-        print(read_private(path))
+        if shared.exists():
+            print(shared.read_text().strip())
+            print('(team-shared stage router token; the stage reserves its own life)', file=sys.stderr)
+        else:
+            print(read_private(path))
 
 
 def set_link_auth(base):
