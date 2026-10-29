@@ -82,20 +82,24 @@ class Stage(Framework):
                 mock.patch.object(stage, 'request_healthy', return_value=True):
             stage.load_model(str(base), 'glm53', {})
         # 1. the pending claim pinned its slice and container name before docker run
-        self.assertEqual(claimed['loading']['slice'], '0,1,2,3')
-        self.assertEqual(claimed['loading']['name'], 'stage-glm53')
+        #    (parallel loader: status.json carries one claim per profile, keyed by id)
+        self.assertEqual(claimed['loading']['glm53']['slice'], '0,1,2,3')
+        self.assertEqual(claimed['loading']['glm53']['name'], 'stage-glm53')
         # 2. the loaded model keeps its slice + port referenced in status.json
         status = inference.load(stage.stage_dir(base) / 'status.json')
         self.assertEqual(status['models']['glm53']['slice'], '0,1,2,3')
         self.assertEqual(status['models']['glm53']['api_port'], stage.API_PORT_BASE)
         # 3. a pending claim reserves its slice: free_gpu_slice must not hand it out twice
+        #    (claims map {profile: claim} in the parallel loader; a legacy single
+        #    claim from an older supervisor is honoured the same way)
+        self.assertEqual(stage.free_gpu_slice({}, {'glm53': {'slice': '0,1,2,3'}}), '4,5,6,7')
         self.assertEqual(stage.free_gpu_slice({}, {'slice': '0,1,2,3'}), '4,5,6,7')
         # 4. a stale claim (supervisor died mid-load, record never reached models.json):
         #    the next load must skip that slice instead of overlapping it.
         inference.save(stage.stage_dir(base) / 'models.json', {})
         inference.save(stage.stage_dir(base) / 'status.json',
-                       dict(status, models={}, loading={'profile': 'glm53', 'name': 'stage-glm53',
-                                                         'slice': '0,1,2,3'}))
+                       dict(status, models={}, loading={'glm53': {'profile': 'glm53', 'name': 'stage-glm53',
+                                                                  'slice': '0,1,2,3'}}))
         with mock.patch.object(node, 'verify_image', return_value=[]), \
                 mock.patch.object(stage, 'request_healthy', return_value=True):
             records = stage.load_model(str(base), 'glm53', {})
@@ -157,6 +161,22 @@ class Stage(Framework):
         # After an unload, the freed 4-GPU block stays whole for the next big profile.
         stage.unload_model(str(base), 'glm53', records)
         self.assertEqual(stage.free_gpu_slice(stage.load_models(str(base)), None, 4), '0,1,2,3')
+
+    def test_trailing_status_write_preserves_in_flight_claims(self):
+        # process_cmd's post-command status refresh must not erase the claim of a
+        # load still cold-loading in another thread: that slice would be handed out
+        # twice afterwards. write_status_preserving_claims is that refresh.
+        base = self.base
+        d = stage.ensure_dirs(base)
+        inference.save(d / 'status.json', {'supervisor': 'running', 'router_port': stage.STAGE_PORT,
+                                           'loading': {'glm53': {'profile': 'glm53', 'slice': '0,1,2,3'}}})
+        stage.write_status_preserving_claims(str(base), stage.STAGE_PORT, {})
+        status = inference.load(d / 'status.json')
+        self.assertEqual(status['loading']['glm53']['slice'], '0,1,2,3')
+        # empty claims regress to loading=None (no stale map, no ghost pinning)
+        stage.write_status(str(base), stage.STAGE_PORT, {}, None)
+        stage.write_status_preserving_claims(str(base), stage.STAGE_PORT, {})
+        self.assertIsNone(inference.load(d / 'status.json')['loading'])
 
     def test_reclaim_claims_frees_the_slice_of_a_dead_load(self):
         # A container that outlived the supervisor still owns its GPUs: stage startup
