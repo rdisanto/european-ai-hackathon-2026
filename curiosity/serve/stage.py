@@ -31,11 +31,9 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
-import threading
 import time
 import urllib.error
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
 
 import inference
 from inference import ROOT, load, save  # noqa: F401 (ROOT used by node)
@@ -47,13 +45,6 @@ API_PORT_BASE = 30200  # model API ports are allocated upward from here
 GPU_PER_MODEL = 4      # default slice size when no profile affinity is given; real loads
                        # size their slice from the profile's parallelism (see profile_gpus)
 POLL = 3               # supervisor command/rescan interval, seconds
-
-# Serializes the stage's shared controller state: GPU-slice allocation, API-port
-# allocation, the records dict and status.json/models.json persistence. With the
-# parallel loader (see serve()), loads of DIFFERENT profiles run concurrently, so
-# every read-modify-write of that state goes through this lock. RLock: helpers
-# (write_status/save_models) re-acquire it from callers that already hold it.
-_LOCK = threading.RLock()
 
 
 def stage_dir(base):
@@ -156,10 +147,9 @@ def load_status(base):
 
 
 def save_models(base, records):
-    with _LOCK:
-        p = stage_dir(base) / 'models.json'
-        save(p, records)
-        shared_visible(p)
+    p = stage_dir(base) / 'models.json'
+    save(p, records)
+    shared_visible(p)
 
 
 def write_status(base, port, records, loading=None):
@@ -174,19 +164,15 @@ def write_status(base, port, records, loading=None):
 
     owner and job_id make the stage visible to the rest of the team: teammates cannot
     see each other's jobs with `squeue -u $USER`, so the reserving member records both
-    here and the CLI queries Slurm from their account instead.
-
-    Called from concurrent load threads: the snapshot is persisted under _LOCK, so no
-    writer can interleave a torn status.json (last writer wins)."""
-    with _LOCK:
-        p = stage_dir(base) / 'status.json'
-        save(p, {'updated': time.time(), 'supervisor': 'running', 'router_port': port,
-                 'node': os.uname().nodename,
-                 'models': {k: {'served_model': v['served_model'], 'slice': v.get('slice'),
-                                'gpus': v.get('gpus'), 'api_port': v.get('api_port')}
-                            for k, v in records.items()},
-                 'loading': loading, 'owner': getpass.getuser(), 'job_id': os.environ.get('SLURM_JOB_ID')})
-        shared_visible(p)
+    here and the CLI queries Slurm from their account instead."""
+    p = stage_dir(base) / 'status.json'
+    save(p, {'updated': time.time(), 'supervisor': 'running', 'router_port': port,
+             'node': os.uname().nodename,
+             'models': {k: {'served_model': v['served_model'], 'slice': v.get('slice'),
+                            'gpus': v.get('gpus'), 'api_port': v.get('api_port')}
+                        for k, v in records.items()},
+             'loading': loading, 'owner': getpass.getuser(), 'job_id': os.environ.get('SLURM_JOB_ID')})
+    shared_visible(p)
 
 
 
@@ -202,43 +188,6 @@ def profile_gpus(p):
     return par['tensor'] * par['pipeline'] * par.get('data', 1)  # same default as profile_check
 
 
-def _claims_iter(loading):
-    """Normalize status.json 'loading' to an iterable of claims.
-
-    The parallel loader keeps one claim per in-flight load ({profile: claim});
-    a legacy single claim (dict carrying a 'slice' key) from an older supervisor
-    is accepted the same way (the boot write_status clears it anyway)."""
-    if not loading:
-        return ()
-    if isinstance(loading, dict) and 'slice' not in loading:
-        return loading.values()
-    return (loading,)
-
-
-def _fresh_claims(base):
-    """Current claims map (status.json 'loading') as a writable dict.
-
-    Re-reads the file so the caller-merge (publish/drop/finalize) never clobbers a
-    claim another load thread has written in between; legacy single claims are
-    dropped (they can only come from a previous supervisor)."""
-    with _LOCK:
-        claims = (load_status(base) or {}).get('loading') or {}
-        if isinstance(claims, dict) and 'slice' in claims:
-            return {}
-        return dict(claims)
-
-
-def write_status_preserving_claims(base, port, records):
-    """write_status that keeps every in-flight load's claim (parallel loader).
-
-    A bare write_status(..., loading=None) from one thread would erase the claim
-    another thread is still cold-loading, and its GPU slice would be handed out
-    twice. Fetch and write are one critical section (_LOCK): a claim published
-    between the read and the write cannot be lost."""
-    with _LOCK:
-        write_status(base, port, records, _fresh_claims(base) or None)
-
-
 def free_gpu_slice(records, loading=None, size=GPU_PER_MODEL):
     """First aligned GPU block of `size` not claimed, or None (stage cannot host it).
 
@@ -250,9 +199,8 @@ def free_gpu_slice(records, loading=None, size=GPU_PER_MODEL):
     used = set()
     for rec in records.values():
         used |= set(int(g) for g in rec['slice'].split(','))
-    for claim in _claims_iter(loading):
-        if claim and claim.get('slice'):
-            used |= set(int(g) for g in claim['slice'].split(','))
+    if loading and loading.get('slice'):
+        used |= set(int(g) for g in loading['slice'].split(','))
     total = int(os.environ.get('STAGE_GPUS', '8'))
     for start in range(0, total - size + 1, size):
         block = list(range(start, start + size))
@@ -288,112 +236,87 @@ def load_model(base, profile_name, records, router_port=None):
     subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     # A pending claim in status.json (a load that never reached models.json, or one whose
     # supervisor died mid-flight) still owns its GPUs: never hand that slice out again.
-    # The allocation (slice + API port + claim publication) is ONE atomic section: with
-    # concurrent loads two threads must never read the same free slice/port and race.
-    with _LOCK:
-        prior = load_status(base) or {}
-        claims = _fresh_claims(base)  # every in-flight load's claim: never overlap a peer's slice
-        # The profile declares its own GPU affinity (parallelism footprint, e.g. glm53 = 4 GPUs):
-        # the slice is sized to fit it, never a fixed block.
-        gpus = profile_gpus(p)
-        slice_ = free_gpu_slice(records, claims, gpus)
-        if slice_ is None:
-            raise RuntimeError('no free {}-GPU slice for {} (stage hosts {} model(s), {} GPU(s) total)'.format(
-                gpus, p['id'], len(records), os.environ.get('STAGE_GPUS', '8')))
-        api_port = free_api_port(records)
-        started_at = time.time()
-        # Claim the slice in status.json BEFORE the container starts: models.json only gains the
-        # record once /health passes, so during the (long) cold load this claim is the ONLY
-        # reference pinning those GPUs. 'name' lets reclaim_claims free them after a crash.
-        loading = {'profile': profile_name, 'name': name, 'slice': slice_, 'gpus': gpus,
-                   'api_port': api_port, 'started': started_at}
-        status_port = router_port if router_port is not None else (prior.get('router_port') or STAGE_PORT)
-        claims[profile_name] = dict(loading, phase='preflight',
-                                    detail='image pull + verification des flags (a froid)')
-        write_status(base, status_port, records, claims)
-    # publish/drop merge into the claims map so a peer's in-flight claim is never
-    # overwritten (parallel loader): each claim pins its own GPU slice.
-    def publish_claim(**updates):
-        with _LOCK:
-            claims = _fresh_claims(base)
-            claims[profile_name] = dict(loading, **updates)
-            write_status(base, status_port, records, claims)
-
-    def drop_claim():
-        with _LOCK:
-            claims = _fresh_claims(base)
-            claims.pop(profile_name, None)
-            write_status(base, status_port, records, claims or None)
-
+    prior = load_status(base) or {}
+    # The profile declares its own GPU affinity (parallelism footprint, e.g. glm53 = 4 GPUs):
+    # the slice is sized to fit it, never a fixed block.
+    gpus = profile_gpus(p)
+    slice_ = free_gpu_slice(records, prior.get('loading'), gpus)
+    if slice_ is None:
+        raise RuntimeError('no free {}-GPU slice for {} (stage hosts {} model(s), {} GPU(s) total)'.format(
+            gpus, p['id'], len(records), os.environ.get('STAGE_GPUS', '8')))
+    api_port = free_api_port(records)
+    started_at = time.time()
+    # Claim the slice in status.json BEFORE the container starts: models.json only gains the
+    # record once /health passes, so during the (long) cold load this claim is the ONLY
+    # reference pinning those GPUs. 'name' lets reclaim_claims free them after a crash.
+    loading = {'profile': profile_name, 'name': name, 'slice': slice_, 'gpus': gpus,
+               'api_port': api_port, 'started': started_at}
+    status_port = router_port if router_port is not None else (prior.get('router_port') or STAGE_PORT)
+    write_status(base, status_port, records,
+                 dict(loading, phase='preflight',
+                      detail='image pull + verification des flags (a froid)'))
     print('STAGE_LOAD_START {} slice {} port {} :: {}'.format(p['id'], slice_, api_port, name), flush=True)
+    # node._ROOT must be the run directory: that is where the fresh API key lives.
+    saved_root, node.ROOT = node.ROOT, run
     try:
-        # node._ROOT must be the run directory: that is where the fresh API key lives.
-        saved_root, node.ROOT = node.ROOT, run
+        # Verify every flag and parser against the image BEFORE the cold load (diagnostic rule).
+        extra = node.verify_image(cfg)
+        engine = node.engine_command(cfg, 0, None, None, api_port) + extra
+        saved = os.environ.get('CUDA_VISIBLE_DEVICES')
+        os.environ['CUDA_VISIBLE_DEVICES'] = slice_
         try:
-            # Verify every flag and parser against the image BEFORE the cold load (diagnostic rule).
-            extra = node.verify_image(cfg)
-            engine = node.engine_command(cfg, 0, None, None, api_port) + extra
-            saved = os.environ.get('CUDA_VISIBLE_DEVICES')
-            os.environ['CUDA_VISIBLE_DEVICES'] = slice_
-            try:
-                argv = node.docker_command(cfg, engine, api_port=api_port, name=name)
-            finally:
-                if saved is None:
-                    os.environ.pop('CUDA_VISIBLE_DEVICES', None)
-                else:
-                    os.environ['CUDA_VISIBLE_DEVICES'] = saved
+            argv = node.docker_command(cfg, engine, api_port=api_port, name=name)
         finally:
-            node.ROOT = saved_root
-        publish_claim(phase='engine', detail='vllm serve demarre (cold load des poids)')
-        print('STAGE_LOAD {} slice {} port {} :: {}'.format(
-            p['id'], slice_, api_port,
-            ' '.join(shlex.quote(a) for a in
-                     [value if not value.startswith('VLLM_API_KEY=') else 'VLLM_API_KEY=[REDACTED]'
-                      for value in argv])), flush=True)
-        child = subprocess.Popen(argv)
-        start = time.monotonic()
-        last_beat = 0.0
-        while time.monotonic() - start < p['startup_timeout_seconds']:
-            if child.poll() is not None:
-                raise RuntimeError('{} container exited before readiness (rc {})'.format(p['id'], child.returncode))
-            if request_healthy(api_port):
-                break
-            elapsed = time.monotonic() - start
-            if elapsed - last_beat >= 30:
-                last_beat = elapsed
-                publish_claim(phase='engine',
-                              detail='attente /health - cold load ({:.0f}s)'.format(elapsed))
-            time.sleep(5)
-        else:
-            subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            raise RuntimeError('{} API not healthy within {} s'.format(p['id'], p['startup_timeout_seconds']))
-    except Exception:
-        drop_claim()  # never leave a ghost claim pinning a slice this load cannot use
-        raise
+            if saved is None:
+                os.environ.pop('CUDA_VISIBLE_DEVICES', None)
+            else:
+                os.environ['CUDA_VISIBLE_DEVICES'] = saved
+    finally:
+        node.ROOT = saved_root
+    write_status(base, status_port, records,
+                 dict(loading, phase='engine', detail='vllm serve demarre (cold load des poids)'))
+    print('STAGE_LOAD {} slice {} port {} :: {}'.format(
+        p['id'], slice_, api_port,
+        ' '.join(shlex.quote(a) for a in
+                 [value if not value.startswith('VLLM_API_KEY=') else 'VLLM_API_KEY=[REDACTED]'
+                  for value in argv])), flush=True)
+    child = subprocess.Popen(argv)
+    start = time.monotonic()
+    last_beat = 0.0
+    while time.monotonic() - start < p['startup_timeout_seconds']:
+        if child.poll() is not None:
+            raise RuntimeError('{} container exited before readiness (rc {})'.format(p['id'], child.returncode))
+        if request_healthy(api_port):
+            break
+        elapsed = time.monotonic() - start
+        if elapsed - last_beat >= 30:
+            last_beat = elapsed
+            write_status(base, status_port, records,
+                         dict(loading, phase='engine',
+                              detail='attente /health - cold load ({:.0f}s)'.format(elapsed)))
+        time.sleep(5)
+    else:
+        subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        raise RuntimeError('{} API not healthy within {} s'.format(p['id'], p['startup_timeout_seconds']))
     endpoint = {'job_id': name, 'stage': True, 'host': os.uname().nodename.split('.')[0],
                 'port': api_port, 'model': p['served_model'], 'profile': p['id'],
                 'runtime': p['runtime'], 'release': cfg['release'], 'gpu_slice': slice_,
                 'ready_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
                 'note': 'stage-managed within the single reservation'}
     save(run / '.runtime/endpoint.json', endpoint)
-    with _LOCK:
-        records[p['id']] = {'name': name, 'api_port': api_port, 'slice': slice_, 'gpus': gpus,
-                            'served_model': p['served_model'], 'run': str(run)}
-        save_models(base, records)
-        # Finalise the reference now: the claim is done, the model owns its slice in models.json
-        # AND status.json. Waiting for the next supervisor poll would leave a window where a
-        # concurrent `stage load` sees the slice claimed by a container /health already accepted.
-        # Only OUR claim goes: a peer's in-flight claim must stay pinned.
-        claims = _fresh_claims(base)
-        claims.pop(profile_name, None)
-        write_status(base, status_port, records, claims or None)
+    records[p['id']] = {'name': name, 'api_port': api_port, 'slice': slice_, 'gpus': gpus,
+                        'served_model': p['served_model'], 'run': str(run)}
+    save_models(base, records)
+    # Finalise the reference now: the claim is done, the model owns its slice in models.json
+    # AND status.json. Waiting for the next supervisor poll would leave a window where a
+    # concurrent `stage load` sees the slice claimed by a container /health already accepted.
+    write_status(base, status_port, records, None)
     print('STAGE_READY_MODEL {} {} slice {} port {}'.format(p['id'], p['served_model'], slice_, api_port), flush=True)
     return records
 
 
 def unload_model(base, profile_name, records):
-    with _LOCK:
-        rec = records.get(profile_name)
+    rec = records.get(profile_name)
     if rec is None:
         return records
     base = Path(base)
@@ -402,9 +325,8 @@ def unload_model(base, profile_name, records):
     ep = Path(rec['run']) / '.runtime/endpoint.json'
     if ep.exists():
         ep.unlink()
-    with _LOCK:
-        records.pop(profile_name, None)
-        save_models(base, records)
+    records.pop(profile_name, None)
+    save_models(base, records)
     print('STAGE_UNLOAD {}'.format(profile_name), flush=True)
     return records
 
@@ -419,25 +341,22 @@ def reclaim_claims(base, records, log):
     A claim matching an already-recorded model is not a dead load, just an unclean
     shutdown: sweep() judges that one by /health, so this leaves it alone."""
     loading = (load_status(base) or {}).get('loading')
-    for claim in _claims_iter(loading):
-        if not claim or not claim.get('slice'):
-            continue
-        if any(rec.get('slice') == claim['slice'] for rec in records.values()):
-            continue
-        name = claim.get('name') or 'stage-{}'.format(claim.get('profile', '?'))
-        try:
-            subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except OSError:  # docker not up yet: the containers died with the daemon, nothing to free
-            continue
-        log.write('reclaimed slice {} of dead load {} ({})\n'.format(claim['slice'], claim.get('profile'), name))
-        log.flush()
+    if not loading or not loading.get('slice'):
+        return
+    if any(rec.get('slice') == loading['slice'] for rec in records.values()):
+        return
+    name = loading.get('name') or 'stage-{}'.format(loading.get('profile', '?'))
+    try:
+        subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:  # docker not up yet: the containers died with the daemon, nothing to free
+        return
+    log.write('reclaimed slice {} of dead load {} ({})\n'.format(loading['slice'], loading.get('profile'), name))
+    log.flush()
 
 
 def sweep(base, records, log):
     """Stop and withdraw any loaded model whose container or /health is gone."""
-    with _LOCK:
-        snapshot = list(records.items())
-    for profile, rec in snapshot:
+    for profile, rec in list(records.items()):
         try:
             alive = subprocess.run(['docker', 'inspect', '-f', '{{.State.Running}}', rec['name']],
                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode().strip() == 'true'
@@ -505,83 +424,37 @@ def serve(args):
     write_status(base, port, records)
     print('STAGE_SERVE ready; router 0.0.0.0:{} ; commands in {}'.format(port, d / 'cmd'), flush=True)
     cmd_dir, done_dir = d / 'cmd', d / 'done'
-    workers = max(1, int(os.environ.get('STAGE_LOAD_WORKERS', '2')))
-    executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix='stage-load')
-    # profile -> Future of its last dispatched load. Loads of DIFFERENT profiles run
-    # concurrently (each on its own GPU slice); the pool's FIFO plus this map keep
-    # load/unload of the SAME profile ordered: an unload waits for its load, and a
-    # second load of a profile already loading is rejected, not queued.
-    pending = {}
-
-    def process_cmd(act, profile, cmd_path):
-        target = done_dir / cmd_path.name
-        try:
-            if act == 'load':
-                future = pending.get(profile)
-                if future is not None and not future.done():
-                    result = {'ok': False, 'action': 'load', 'profile': profile,
-                              'error': 'load of {} already in progress'.format(profile)}
-                else:
-                    try:
-                        load_model(base, profile, records, port)
-                        result = {'ok': True, 'action': 'load', 'profile': profile}
-                    except Exception as error:  # noqa: BLE001 - report and stay up
-                        result = {'ok': False, 'action': 'load', 'profile': profile, 'error': str(error)}
-                        print('STAGE_LOAD_FAILED {} :: {}'.format(profile, error), flush=True)
-            elif act == 'unload':
-                future = pending.get(profile)
-                if future is not None:
-                    try:
-                        future.result()  # same-profile order: the load it unloads must finish first
-                    except Exception as error:
-                        print('STAGE_UNLOAD after failed load {} :: {}'.format(profile, error), flush=True)
-                unload_model(base, profile, records)
-                result = {'ok': True, 'action': 'unload', 'profile': profile}
-            else:
-                result = {'ok': False, 'action': act or '?', 'error': 'unknown action'}
-            target.write_text(json.dumps(result) + '\n')
-            shared_visible(target)
-            cmd_path.unlink()
-            # Refresh status.models without erasing a peer's in-flight claim: a bare
-            # write_status(..., loading=None) would un-pin its GPU slice mid cold load.
-            write_status_preserving_claims(base, port, records)
-        except (ValueError, OSError) as error:
-            target.write_text(json.dumps({'ok': False, 'error': str(error)}) + '\n')
-            shared_visible(target)
-            cmd_path.unlink()
-
     while True:
         try:
             for cmd_path in sorted(cmd_dir.glob('*.cmd')):
+                target = done_dir / cmd_path.name
                 try:
                     action = json.loads(cmd_path.read_text())
                     act, profile = action.get('action'), action.get('profile')
+                    if act == 'load':
+                        try:
+                            records = load_model(base, profile, records, port)
+                            result = {'ok': True, 'action': 'load', 'profile': profile}
+                        except Exception as error:  # noqa: BLE001 - report and stay up
+                            result = {'ok': False, 'action': 'load', 'profile': profile, 'error': str(error)}
+                            print('STAGE_LOAD_FAILED {} :: {}'.format(profile, error), flush=True)
+                    elif act == 'unload':
+                        records = unload_model(base, profile, records)
+                        result = {'ok': True, 'action': 'unload', 'profile': profile}
+                    else:
+                        result = {'ok': False, 'action': act or '?', 'error': 'unknown action'}
+                    target.write_text(json.dumps(result) + '\n')
+                    shared_visible(target)
+                    cmd_path.unlink()
+                    write_status(base, port, records)
                 except (ValueError, OSError) as error:
-                    target = done_dir / cmd_path.name
                     target.write_text(json.dumps({'ok': False, 'error': str(error)}) + '\n')
                     shared_visible(target)
                     cmd_path.unlink()
-                    continue
-                if act == 'load':
-                    future = pending.get(profile)
-                    if future is not None and not future.done():
-                        target = done_dir / cmd_path.name
-                        target.write_text(json.dumps(
-                            {'ok': False, 'action': 'load', 'profile': profile,
-                             'error': 'load of {} already in progress'.format(profile)}) + '\n')
-                        shared_visible(target)
-                        cmd_path.unlink()
-                        continue
-                    future = executor.submit(process_cmd, act, profile, cmd_path)
-                    pending[profile] = future
-                else:
-                    executor.submit(process_cmd, act, profile, cmd_path)
-            pending = {name: future for name, future in pending.items() if not future.done()}
             records = sweep(base, records, log)
         except KeyboardInterrupt:
             break
         time.sleep(POLL)
-    executor.shutdown(wait=True)
     if router_child.poll() is None:
         router_child.terminate()
 

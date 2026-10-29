@@ -533,17 +533,14 @@ def stage_status(base, as_json=False):
                 status.get('supervisor'), status.get('node'), status.get('router_port'), owner))
             loading = status.get('loading')
             if loading:
-                # Parallel loader: one claim per profile in flight ({profile: claim});
-                # a legacy single claim (dict carrying 'slice') renders the same way.
-                for claim in stage._claims_iter(loading):
-                    age = ''
-                    started = claim.get('started')
-                    if started:
-                        age = ' ({} min)'.format(int((time.time() - started) // 60))
-                    detail = ' - ' + claim['detail'] if claim.get('detail') else ''
-                    print('  loading {:14} slice={:>7} api_port={} phase={}{}{}'.format(
-                        claim.get('profile', '?'), claim.get('slice'), claim.get('api_port'),
-                        claim.get('phase'), age, detail))
+                age = ''
+                started = loading.get('started')
+                if started:
+                    age = ' ({} min)'.format(int((time.time() - started) // 60))
+                detail = ' - ' + loading['detail'] if loading.get('detail') else ''
+                print('  loading {:14} slice={:>7} api_port={} phase={}{}{}'.format(
+                    loading.get('profile', '?'), loading.get('slice'), loading.get('api_port'),
+                    loading.get('phase'), age, detail))
     else:
         print('supervisor: not reported yet (reserve the stage, then wait for its job log)')
     if models:
