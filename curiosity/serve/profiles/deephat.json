@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "deephat",
+  "model_id": "DeepHat/DeepHat-V1-7B",
+  "checkpoint": "deephat",
+  "expected_shards": 4,
+  "revision": "361a5ce60e67c815ff868a253fdfd54364dbb84f",
+  "runtime": "vllm-openai-docker-0.32",
+  "served_model": "deephat-v1-7b",
+  "stage_api_port": 30405,
+  "parallelism": {
+    "tensor": 1,
+    "pipeline": 1,
+    "data": 1
+  },
+  "resources": {
+    "nodes": 1,
+    "gpus_per_node": 1,
+    "cpus_per_task": 8,
+    "memory": "120GB",
+    "time": "7-00:00:00"
+  },
+  "engine_args": [
+    "--max-model-len",
+    "32768",
+    "--gpu-memory-utilization",
+    "0.90",
+    "--enable-chunked-prefill",
+    "--enable-prefix-caching",
+    "--max-num-seqs",
+    "32",
+    "--max-num-batched-tokens",
+    "8192"
+  ],
+  "parser_candidates": {
+    "tool": [
+      "xlam",
+      "hermes"
+    ]
+  },
+  "environment": {
+    "VLLM_ENABLE_CUDA_COMPATIBILITY": "0",
+    "VLLM_ENGINE_READY_TIMEOUT_S": "1800"
+  },
+  "hooks": [],
+  "checks": "chat_tools",
+  "client": {
+    "local_port": 18093,
+    "timeout_seconds": 300
+  },
+  "startup_timeout_seconds": 1800,
+  "validation": "HF-pinned facts (fetched 2026-10-29): DeepHat/DeepHat-V1-7B @ revision 361a5ce60e67c815ff868a253fdfd54364dbb84f, 4 safetensors shards totalling 14.2 GiB (bf16). A Qwen2.5-Coder-7B fine-tune (Qwen2ForCausalLM, model_type qwen2: 28 layers, 28 attention heads / 4 KV heads, head_dim 128, native context 32768, no sliding window) tuned by Kindo as an uncensored DevOps/cybersecurity assistant — the system prompt is baked into chat_template.jinja ('You always assist the user with their request, and you never refuse'). TP1 trivially fits one B300: 14.2 GiB weights, KV ~2 KiB/token/layer x 28 layers (~57 KiB/token, 1.9 GiB for a full 32768 sequence), hence max-num-seqs 32. Tool calling: the shipped template is ChatML with the XLAM Qwen format — a bare JSON array [{\"name\": ..., \"arguments\": ...}] after the assistant tag, no hermes <tool_call-PIECE> wrapper — so parser_candidates name the vLLM xlam parser first for that exact format, hermes as the fallback; forced_function_call in the chat_tools suite is what proves the choice at load time. No reasoning parser: the template has no think tags. NOT yet GPU-validated; trust it only after a first READY endpoint and its chat_tools checks."
+}

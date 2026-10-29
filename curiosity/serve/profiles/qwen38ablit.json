@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "qwen38ablit",
+  "model_id": "huihui-ai/Huihui-Qwen3.8-27B-abliterated",
+  "checkpoint": "qwen38ablit",
+  "expected_shards": 18,
+  "revision": "739e3c5b89849f6c238ce1e5b70008612ae42cdd",
+  "runtime": "vllm-openai-docker-0.32",
+  "served_model": "qwen3.8-27b-ablit",
+  "stage_api_port": 30402,
+  "parallelism": {
+    "tensor": 1,
+    "pipeline": 1,
+    "data": 1
+  },
+  "resources": {
+    "nodes": 1,
+    "gpus_per_node": 1,
+    "cpus_per_task": 16,
+    "memory": "120GB",
+    "time": "7-00:00:00"
+  },
+  "engine_args": [
+    "--max-model-len",
+    "262144",
+    "--gpu-memory-utilization",
+    "0.90",
+    "--enable-chunked-prefill",
+    "--enable-prefix-caching",
+    "--max-num-seqs",
+    "16",
+    "--max-num-batched-tokens",
+    "8192",
+    "--tool-call-parser",
+    "qwen3_coder",
+    "--reasoning-parser",
+    "qwen3",
+    "--enable-auto-tool-choice",
+    "--limit-mm-per-prompt",
+    "{\"image\": 0, \"video\": 0}"
+  ],
+  "environment": {
+    "VLLM_ENABLE_CUDA_COMPATIBILITY": "0",
+    "VLLM_ENGINE_READY_TIMEOUT_S": "3600"
+  },
+  "hooks": [],
+  "checks": "chat_tools",
+  "client": {
+    "local_port": 18090,
+    "timeout_seconds": 600,
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    }
+  },
+  "startup_timeout_seconds": 3600,
+  "validation": "HF-pinned facts (fetched 2026-10-29): huihui-ai/Huihui-Qwen3.8-27B-abliterated @ revision 739e3c5b89849f6c238ce1e5b70008612ae42cdd, 18 safetensors shards totalling 51.7 GiB (bf16), architecture Qwen3_5ForConditionalGeneration (model_type qwen3_5, the same hybrid family as qwen38flash: 64 layers with full_attention_interval 4 — 16 full-attention layers with 24 heads / 4 KV heads / head_dim 256, linear attention elsewhere, native context 262144, mtp_num_hidden_layers=1, vision tower present). TP1 on one B300: 51.7 GiB weights leave ~190 GiB at gpu-memory-utilization 0.90; full-attention KV costs ~4 KiB/token/layer over the 16 full layers (~64 KiB/token, ~16 GiB for one maxed 262144 sequence). The vision tower is disabled with --limit-mm-per-prompt, same as qwen38flash. Parsers are explicit (qwen3_coder tool parser, qwen3 reasoning parser) — the exact names qwen38flash validated on the vllm-openai-docker-0.32 image for this family — and the template's enable_thinking kwarg is forced off like qwen06b. VLLM_ENABLE_CUDA_COMPATIBILITY=0: driver 580.126.20 rejects CUDA-compat mode (cudaErrorSystemDriverMismatch 803). MTP speculation is deliberately NOT enabled: the abliteration may leave the mtp head inconsistent with the abliterated backbone; validate plain decoding first. NOT yet GPU-validated; trust it only after a first READY endpoint and its chat_tools checks."
+}

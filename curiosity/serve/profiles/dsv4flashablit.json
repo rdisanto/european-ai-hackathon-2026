@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "id": "dsv4flashablit",
+  "model_id": "apetersson/DeepSeek-V4-Flash-0731-Abliterated-FP8",
+  "revision": "7d02640c72a2c8127f116d3d1933ddfec5e4c0fa",
+  "checkpoint": "dsv4flashablit",
+  "expected_shards": 48,
+  "runtime": "vllm-openai-docker-0.32",
+  "served_model": "deepseek-v4-flash-ablit",
+  "stage_api_port": 30403,
+  "parallelism": {
+    "tensor": 1,
+    "pipeline": 1,
+    "data": 1
+  },
+  "resources": {
+    "nodes": 1,
+    "gpus_per_node": 1,
+    "cpus_per_task": 16,
+    "memory": "120GB",
+    "time": "7-00:00:00"
+  },
+  "engine_args": [
+    "--dtype",
+    "bfloat16",
+    "--gpu-memory-utilization",
+    "0.90",
+    "--max-model-len",
+    "524288",
+    "--max-num-seqs",
+    "4",
+    "--max-num-batched-tokens",
+    "8192",
+    "--enable-chunked-prefill",
+    "--enable-prefix-caching",
+    "--enable-auto-tool-choice"
+  ],
+  "parser_candidates": {
+    "tool": [
+      "deepseek_v4",
+      "deepseek_v41",
+      "deepseek_v3",
+      "deepseek_v31"
+    ],
+    "reasoning": [
+      "deepseek_v4",
+      "deepseek_v41",
+      "deepseek_v3",
+      "deepseek_v31"
+    ]
+  },
+  "environment": {
+    "OMP_NUM_THREADS": "1",
+    "VLLM_ENGINE_READY_TIMEOUT_S": "3000"
+  },
+  "hooks": [],
+  "checks": "chat_tools",
+  "client": {
+    "local_port": 18091,
+    "timeout_seconds": 1800,
+    "chat_template_kwargs": {
+      "thinking": false
+    }
+  },
+  "startup_timeout_seconds": 7200,
+  "validation": "Rebuilt from the deleted TP4 profile (git e2e355d) at TP1 on one B300: apetersson/DeepSeek-V4-Flash-0731-Abliterated-FP8 @ revision 7d02640c72a2c8127f116d3d1933ddfec5e4c0fa, 48 safetensors shards totalling 155.4 GiB (FP8 e4m3 dynamic, expert_dtype fp4), architecture DeepseekV4ForCausalLM (deepseek_v4): 43 layers, MLA-style attention (num_key_value_heads 1, head_dim 512, qk_rope_head_dim 64, q/o_lora_rank 1024) with sparse indexing (index_topk 512) and sliding_window 128, MoE 256 routed experts / 6 per token / 1 shared, num_nextn_predict_layers=1, native context 1048576 capped at 524288 as in the TP4 profile. TP1 sizing on a 268 GiB B300 at gpu-memory-utilization 0.90 (~241 GiB): 155.4 GiB weights leave ~86 GiB for the compressed KV — enough for 524288-token sequences, but max-num-seqs is cut from the TP4 profile's 8 to 4 so worst-case concurrent sequences cannot overrun the pool (TP4 had ~4x the KV headroom). --enable-expert-parallel is dropped (EP only sharded at TP>1) and dtype stays bfloat16 for the non-quantized tail, as before. Parser candidates unchanged (deepseek_v4/v41/v3/v31): the launcher resolves them from the image's registry and appends --enable-auto-tool-choice. NOT yet GPU-validated at TP1; trust it only after a first READY endpoint and its chat_tools checks."
+}

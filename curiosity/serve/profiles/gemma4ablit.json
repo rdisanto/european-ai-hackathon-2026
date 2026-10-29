@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "gemma4ablit",
+  "model_id": "wangzhang/gemma-4-31B-it-abliterated",
+  "checkpoint": "gemma4ablit",
+  "expected_shards": 2,
+  "revision": "d7431183c443443024debb08b222cbcf2e424da7",
+  "runtime": "vllm-openai-docker-0.32",
+  "served_model": "gemma-4-ablit",
+  "stage_api_port": 30404,
+  "parallelism": {
+    "tensor": 1,
+    "pipeline": 1,
+    "data": 1
+  },
+  "resources": {
+    "nodes": 1,
+    "gpus_per_node": 1,
+    "cpus_per_task": 16,
+    "memory": "120GB",
+    "time": "7-00:00:00"
+  },
+  "engine_args": [
+    "--max-model-len",
+    "32768",
+    "--enable-chunked-prefill",
+    "--enable-prefix-caching",
+    "--gpu-memory-utilization",
+    "0.90"
+  ],
+  "parser_candidates": {
+    "tool": [
+      "gemma4"
+    ],
+    "reasoning": [
+      "gemma4"
+    ]
+  },
+  "environment": {
+    "VLLM_ENABLE_CUDA_COMPATIBILITY": "0",
+    "VLLM_ENGINE_READY_TIMEOUT_S": "1800"
+  },
+  "hooks": [],
+  "checks": "chat_tools",
+  "client": {
+    "local_port": 18092,
+    "timeout_seconds": 600
+  },
+  "startup_timeout_seconds": 1800,
+  "validation": "The validated gemma4 recipe on abliterated weights: wangzhang/gemma-4-31B-it-abliterated @ revision d7431183c443443024debb08b222cbcf2e424da7, 2 safetensors shards totalling 58.3 GiB (bf16) — same footprint and architecture as google/gemma-4-31B-it (Gemma4ForConditionalGeneration, 60 text layers, 16 KV heads, head_dim 256, 1024-token sliding window on 5/6 layers), so the same TP1 sizing applies: full-attention worst case ~0.94 MiB/token, max-model-len capped at 32768 (~30 GiB KV upper bound, far less with the sliding window). Parser candidates gemma4/gemma4 are resolved from the image's registry before the cold load and --enable-auto-tool-choice is appended by the launcher (the gemma4 lesson). Known upstream caveats are the twin's: tool-call format bugs (vllm #39468) and <pad> tokens under concurrent tool calls (#39392); four_concurrent_requests + forced_function_call surface either. NOT yet GPU-validated (the google twin passed the chat suite); trust it only after a first READY endpoint and its chat_tools checks."
+}
